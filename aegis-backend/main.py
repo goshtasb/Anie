@@ -26,9 +26,9 @@ async def scan_endpoint(
     payload: ScanRequest,
     x_user_id: str = Header(None, alias="X-User-ID")
 ):
-    # 1. CACHE CHECK (Content-Based)
-    # Hash the TEXT, not URL. Same article content = same score.
-    cached = services.check_cache(payload.text)
+    # 1. CACHE CHECK (Canonical URL)
+    # Frontend sends the stable canonical URL, not the dirty browser URL
+    cached = services.check_cache(payload.url)
     if cached:
         return ANIResponse(**cached)
 
@@ -42,9 +42,9 @@ async def scan_endpoint(
     # 3. RUN GROK (The Cost)
     result = await analyze_text(payload.text)
 
-    # 4. SAVE TO CACHE (Content-Based)
-    # Save with text hash so same content always returns same score
-    services.save_to_cache(payload.url, payload.text, result.model_dump(), result.ani_score)
+    # 4. SAVE TO CACHE (Canonical URL)
+    # Save using the stable canonical URL as key
+    services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
 
     return result
 

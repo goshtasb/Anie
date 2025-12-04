@@ -1,28 +1,10 @@
-// content.js
+// content.js - Aegis/Anie Content Extractor
+
 (function() {
-    // 1. Heuristic: Find the biggest text container
-    function getMainContent() {
-        // Try to find semantic tags first
-        const article = document.querySelector('article');
-        if (article) return article.innerText;
-
-        const main = document.querySelector('main');
-        if (main) return main.innerText;
-
-        // Fallback: Get all paragraphs and join them
-        const paragraphs = Array.from(document.querySelectorAll('p'));
-        // Filter out tiny snippets (ads, nav links)
-        const content = paragraphs
-            .map(p => p.innerText)
-            .filter(text => text.length > 50)
-            .join('\n\n');
-
-        return content || document.body.innerText; // Last resort
-    }
-
-    // 2. Get Canonical URL (strips tracking garbage)
+    // 1. EXTRACT CANONICAL URL (The Stable Identity)
+    // This NEVER changes regardless of ads, tracking params, or refreshes
     function getCanonicalUrl() {
-        // Priority 1: <link rel="canonical"> - the article's "True Name"
+        // Priority 1: <link rel="canonical"> - The article's True Name
         const canonical = document.querySelector('link[rel="canonical"]');
         if (canonical && canonical.href) {
             return canonical.href;
@@ -39,15 +21,36 @@
         return url.origin + url.pathname;
     }
 
-    // 3. Extract Metadata
+    // 2. EXTRACT ARTICLE TEXT (Clean - avoids sidebar/ad noise)
+    function getMainContent() {
+        // Try to find the specific article body to avoid Sidebar/Footer noise
+        const article = document.querySelector('article') ||
+                        document.querySelector('[itemprop="articleBody"]') ||
+                        document.querySelector('.article-body') ||
+                        document.querySelector('.story-body') ||
+                        document.querySelector('main');
+
+        if (article) {
+            return article.innerText;
+        }
+
+        // Fallback: Aggressive filtering - only substantial paragraphs
+        const paragraphs = Array.from(document.querySelectorAll('p'));
+        const content = paragraphs
+            .map(p => p.innerText)
+            .filter(text => text.length > 50)
+            .join('\n\n');
+
+        return content || document.body.innerText;
+    }
+
+    // 3. Build payload with STABLE identity
     const payload = {
+        url: getCanonicalUrl(),  // Stable ID - survives refreshes and ad changes
         title: document.title,
-        url: getCanonicalUrl(),  // Clean URL for consistent caching
         domain: window.location.hostname,
-        // TRUNCATE to 3000 words to prevent token overflow/cost spikes
         text: getMainContent().substring(0, 15000)
     };
 
-    // 4. Return data to the Popup
     return payload;
 })();
