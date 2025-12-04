@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Aegis | Forensic News Analyst",
+  "name": "Anie | Narrative Integrity Engine",
   "version": "1.0.0",
-  "description": "Analyzes news articles for manipulation, logical fallacies, and emotional coercion.",
+  "description": "AI-powered psyop detection. Analyzes news for manipulation, fabricated authority, and emotional coercion.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,7 +10,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Scan with Aegis"
+    "default_title": "Scan with Anie"
   },
   "background": {
     "service_worker": "background.js"
