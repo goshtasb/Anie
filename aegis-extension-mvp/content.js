@@ -1,54 +1,98 @@
-// content.js - Aegis/Anie Content Extractor
+// content.js - Anie Surgical Text Extractor
+// Strips ads, nav, comments, and noise to extract pure journalism
 
 (function() {
-    // 1. EXTRACT CANONICAL URL (The Stable Identity)
-    // This NEVER changes regardless of ads, tracking params, or refreshes
+    /**
+     * EXTRACT CANONICAL URL (The Universal ID)
+     * This is the "True Name" of the article, ignoring ?utm_source, ?ref, etc.
+     */
     function getCanonicalUrl() {
-        // Priority 1: <link rel="canonical"> - The article's True Name
+        // 1. Try the official canonical meta tag
         const canonical = document.querySelector('link[rel="canonical"]');
-        if (canonical && canonical.href) {
-            return canonical.href;
-        }
+        if (canonical && canonical.href) return canonical.href;
 
-        // Priority 2: og:url meta tag (common on news sites)
+        // 2. Try Open Graph URL (common on news sites)
         const ogUrl = document.querySelector('meta[property="og:url"]');
-        if (ogUrl && ogUrl.content) {
-            return ogUrl.content;
-        }
+        if (ogUrl && ogUrl.content) return ogUrl.content;
 
-        // Priority 3: Strip query params from current URL
-        const url = new URL(window.location.href);
-        return url.origin + url.pathname;
+        // 3. Fallback: Strip search params and hash from current URL
+        return window.location.href.split('?')[0].split('#')[0];
     }
 
-    // 2. EXTRACT ARTICLE TEXT (Clean - avoids sidebar/ad noise)
+    /**
+     * SURGICAL TEXT EXTRACTION (The "Noise Filter")
+     * Clones the DOM and aggressively cuts out non-journalistic content.
+     */
     function getMainContent() {
-        // Try to find the specific article body to avoid Sidebar/Footer noise
-        const article = document.querySelector('article') ||
-                        document.querySelector('[itemprop="articleBody"]') ||
-                        document.querySelector('.article-body') ||
-                        document.querySelector('.story-body') ||
-                        document.querySelector('main');
+        // 1. Clone the body so we don't break the user's visible page
+        const clone = document.body.cloneNode(true);
 
-        if (article) {
-            return article.innerText;
-        }
+        // 2. Define the "Noise" Selectors (Ads, Nav, Popups, Clickbait)
+        const noiseSelectors = [
+            // Technical elements
+            'script', 'style', 'noscript', 'iframe', 'svg', 'canvas',
+            // Structural noise
+            'nav', 'footer', 'header', 'aside',
+            // Ad-related
+            '.ad', '.ads', '.advertisement', '.ad-container', '.ad-wrapper',
+            '[class*="advert"]', '[id*="advert"]',
+            // Social/sharing
+            '.social-share', '.share-buttons', '.social-links',
+            // Comments
+            '.comments', '.comment-section', '.disqus', '#comments',
+            // Related content (clickbait)
+            '.related-articles', '.recommended', '.trending', '.popular',
+            // Popups and banners
+            '.newsletter-signup', '.popup', '.modal', '.cookie-banner',
+            '.subscription-prompt', '.paywall',
+            // ARIA hidden (invisible to users anyway)
+            '[aria-hidden="true"]',
+            // Semantic roles for non-content
+            '[role="complementary"]', '[role="navigation"]', '[role="banner"]',
+            '[role="contentinfo"]'
+        ];
 
-        // Fallback: Aggressive filtering - only substantial paragraphs
-        const paragraphs = Array.from(document.querySelectorAll('p'));
-        const content = paragraphs
-            .map(p => p.innerText)
-            .filter(text => text.length > 50)
-            .join('\n\n');
+        // 3. Cut them out
+        noiseSelectors.forEach(selector => {
+            try {
+                const elements = clone.querySelectorAll(selector);
+                elements.forEach(el => el.remove());
+            } catch (e) {
+                // Invalid selector, skip
+            }
+        });
 
-        return content || document.body.innerText;
+        // 4. Identify the "Organ" (The actual Article Body)
+        // Priority order: most specific to least specific
+        const article = clone.querySelector('[itemprop="articleBody"]') ||
+                        clone.querySelector('article') ||
+                        clone.querySelector('.article-body') ||
+                        clone.querySelector('.story-body') ||
+                        clone.querySelector('.article-content') ||
+                        clone.querySelector('.post-content') ||
+                        clone.querySelector('.entry-content') ||
+                        clone.querySelector('main') ||
+                        clone;
+
+        // 5. Extract and Normalize
+        let text = article.innerText || '';
+
+        // Normalize whitespace
+        text = text
+            .replace(/\t/g, ' ')           // Replace tabs with spaces
+            .replace(/ +/g, ' ')           // Collapse multiple spaces
+            .replace(/\n\s*\n\s*\n/g, '\n\n') // Max 2 newlines
+            .trim();
+
+        return text;
     }
 
-    // 3. Build payload with STABLE identity
+    // 6. Construct Payload
     const payload = {
-        url: getCanonicalUrl(),  // Stable ID - survives refreshes and ad changes
+        url: getCanonicalUrl(),
         title: document.title,
         domain: window.location.hostname,
+        // Send the surgically cleaned text (max 15k chars)
         text: getMainContent().substring(0, 15000)
     };
 
