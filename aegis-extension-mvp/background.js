@@ -1,5 +1,8 @@
 // background.js
 
+// Production API URL (Render deployment)
+const API_URL = 'https://aegis-alpha.onrender.com';
+
 // Generate or retrieve a unique device ID for guest mode
 async function getDeviceId() {
   return new Promise((resolve) => {
@@ -41,7 +44,7 @@ async function handleAnalyzeRequest(request, sendResponse) {
     const deviceId = await getDeviceId();
 
     // Call Backend API
-    const response = await fetch('http://localhost:8010/v1/scan', {
+    const response = await fetch(`${API_URL}/v1/scan`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +88,7 @@ async function handleGetCredits(sendResponse) {
   try {
     const deviceId = await getDeviceId();
 
-    const response = await fetch(`http://localhost:8010/v1/credits/${deviceId}`);
+    const response = await fetch(`${API_URL}/v1/credits/${deviceId}`);
 
     if (response.ok) {
       const data = await response.json();
