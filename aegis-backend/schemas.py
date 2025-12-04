@@ -19,6 +19,15 @@ class VectorScore(BaseModel):
     analysis: str = Field(..., description="Detailed explanation")
 
 
+class FactCheckVector(BaseModel):
+    """Special vector for fact-checking with source citations."""
+    score: int = Field(..., ge=0, le=100, description="0-100 factual accuracy score")
+    claims_checked: List[str] = Field(default_factory=list, description="Claims that were verified")
+    flags: List[str] = Field(default_factory=list, description="Specific factual issues found")
+    sources: List[str] = Field(default_factory=list, description="Source URLs used for verification")
+    analysis: str = Field(..., description="Detailed explanation of fact-check findings")
+
+
 class ANIResponse(BaseModel):
     ani_score: int = Field(..., ge=0, le=100, description="0-100 Narrative Integrity Score")
     summary: str = Field(..., description="2-3 sentence summary of findings")
@@ -27,6 +36,7 @@ class ANIResponse(BaseModel):
         default_factory=dict,
         description="Analysis vectors: authority, emotion, logic, headline"
     )
+    fact_check: Optional[FactCheckVector] = Field(default=None, description="Fact-check results from Truth Layer")
     cached: bool = Field(default=False, description="Whether result was served from cache")
     credits_remaining: Optional[int] = Field(default=None, description="User's remaining credits")
 
