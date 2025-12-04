@@ -26,11 +26,10 @@ async def scan_endpoint(
     payload: ScanRequest,
     x_user_id: str = Header(None, alias="X-User-ID")
 ):
-    # 1. CACHE CHECK (Saves YOU money)
-    # If we scanned this URL before, return the database result instantly.
-    cached = services.check_cache(payload.url)
+    # 1. CACHE CHECK (Content-Based)
+    # Hash the TEXT, not URL. Same article content = same score.
+    cached = services.check_cache(payload.text)
     if cached:
-        print(f"✅ Cache Hit for {payload.url}")
         return ANIResponse(**cached)
 
     # 2. PAYMENT GATE (DISABLED FOR ALPHA)
@@ -43,9 +42,9 @@ async def scan_endpoint(
     # 3. RUN GROK (The Cost)
     result = await analyze_text(payload.text)
 
-    # 4. SAVE TO CACHE
-    # Save this result so the next person gets it for free
-    services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
+    # 4. SAVE TO CACHE (Content-Based)
+    # Save with text hash so same content always returns same score
+    services.save_to_cache(payload.url, payload.text, result.model_dump(), result.ani_score)
 
     return result
 
