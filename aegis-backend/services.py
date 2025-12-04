@@ -1,5 +1,6 @@
 import os
 import hashlib
+from urllib.parse import urlparse, urlunparse
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -16,8 +17,28 @@ else:
     supabase = None
     print("⚠️ Supabase not configured. Caching disabled.")
 
+
+def normalize_url(url: str) -> str:
+    """
+    Strip query parameters and fragments from URL.
+    Defense-in-depth: Even if frontend sends dirty URL, we clean it.
+
+    cnn.com/article?ref=rss&utm_source=twitter -> cnn.com/article
+    """
+    try:
+        parsed = urlparse(url)
+        # Rebuild URL with only scheme, netloc, and path (no query/fragment)
+        clean = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+        # Remove trailing slash for consistency
+        return clean.rstrip('/')
+    except Exception:
+        return url  # If parsing fails, use original
+
+
 def get_url_hash(url: str) -> str:
-    return hashlib.md5(url.encode()).hexdigest()
+    """Hash the normalized (clean) URL for consistent cache keys."""
+    clean_url = normalize_url(url)
+    return hashlib.md5(clean_url.encode()).hexdigest()
 
 def check_cache(url: str):
     if not supabase: return None
