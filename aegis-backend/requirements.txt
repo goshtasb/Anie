@@ -5,3 +5,5 @@ openai>=1.14.0
 python-dotenv>=1.0.1
 mangum>=0.17.0
 tavily-python>=0.7.0
+supabase>=2.0.0
+gunicorn>=21.0.0

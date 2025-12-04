@@ -11,6 +11,7 @@ key: str = os.environ.get("SUPABASE_KEY")
 # Graceful fallback if Supabase keys aren't set in Render yet
 if url and key and "your-project-id" not in url:
     supabase: Client = create_client(url, key)
+    print("✅ Supabase connected. Caching enabled.")
 else:
     supabase = None
     print("⚠️ Supabase not configured. Caching disabled.")
