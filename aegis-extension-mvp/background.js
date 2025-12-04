@@ -1,0 +1,106 @@
+// background.js
+
+// Generate or retrieve a unique device ID for guest mode
+async function getDeviceId() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['device_id'], (result) => {
+      if (result.device_id) {
+        resolve(result.device_id);
+      } else {
+        // Generate a new UUID-like device ID
+        const newId = 'aegis_' + crypto.randomUUID();
+        chrome.storage.local.set({ device_id: newId });
+        resolve(newId);
+      }
+    });
+  });
+}
+
+// Sync credits from server response
+function syncCredits(creditsFromServer) {
+  if (creditsFromServer !== null && creditsFromServer !== undefined) {
+    chrome.storage.local.set({ credits: creditsFromServer });
+  }
+}
+
+// Listen for messages from the Popup
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "ANALYZE_TEXT") {
+    handleAnalyzeRequest(request, sendResponse);
+    return true; // Keep the message channel open for async operations
+  }
+
+  if (request.action === "GET_CREDITS") {
+    handleGetCredits(sendResponse);
+    return true;
+  }
+});
+
+async function handleAnalyzeRequest(request, sendResponse) {
+  try {
+    const deviceId = await getDeviceId();
+
+    // Call Backend API
+    const response = await fetch('http://localhost:8010/v1/scan', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: request.payload.url,
+        text: request.payload.text,
+        title: request.payload.title,
+        domain: request.payload.domain,
+        device_id: deviceId
+      })
+    });
+
+    if (response.status === 402) {
+      // No credits remaining
+      syncCredits(0);
+      sendResponse({ status: "error", code: "NO_CREDITS" });
+      return;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      sendResponse({ status: "error", message: errorData.detail || "Analysis failed" });
+      return;
+    }
+
+    const data = await response.json();
+
+    // Sync credits from server response
+    syncCredits(data.credits_remaining);
+
+    sendResponse({ status: "success", data: data });
+
+  } catch (error) {
+    console.error("Aegis API Error:", error);
+    sendResponse({ status: "error", message: error.toString() });
+  }
+}
+
+async function handleGetCredits(sendResponse) {
+  try {
+    const deviceId = await getDeviceId();
+
+    const response = await fetch(`http://localhost:8010/v1/credits/${deviceId}`);
+
+    if (response.ok) {
+      const data = await response.json();
+      syncCredits(data.credits);
+      sendResponse({ status: "success", credits: data.credits });
+    } else {
+      // Fall back to local storage
+      chrome.storage.local.get(['credits'], (result) => {
+        sendResponse({ status: "success", credits: result.credits || 5 });
+      });
+    }
+  } catch (error) {
+    // Fall back to local storage on network error
+    chrome.storage.local.get(['credits'], (result) => {
+      sendResponse({ status: "success", credits: result.credits || 5 });
+    });
+  }
+}

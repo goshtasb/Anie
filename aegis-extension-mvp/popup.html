@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 360px;
+            min-height: 400px;
+            margin: 0;
+            padding: 0;
+            background: #0f172a;
+            color: #f8fafc;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #1e293b;
+            background: #020617;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+        }
+
+        .credit-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #1e293b;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .credit-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        .main {
+            padding: 40px 20px;
+            text-align: center;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scan-button {
+            width: 120px;
+            height: 120px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .scan-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(59, 130, 246, 0.4);
+        }
+
+        .scan-button:active {
+            transform: scale(0.98);
+        }
+
+        .scan-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 8px;
+        }
+
+        .subtext {
+            color: #94a3b8;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            font-size: 16px;
+            font-weight: 500;
+            color: #3b82f6;
+            font-family: 'Roboto Mono', monospace;
+            min-height: 24px;
+        }
+
+        .results {
+            text-align: left;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .score-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .score-value {
+            font-size: 48px;
+            font-weight: 700;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        .score-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .verdict-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+
+        .verdict-red {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+        }
+
+        .verdict-yellow {
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid #eab308;
+            color: #fde047;
+        }
+
+        .verdict-green {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid #22c55e;
+            color: #86efac;
+        }
+
+        .summary {
+            margin: 20px 0;
+            padding: 16px;
+            background: #1e293b;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            line-height: 1.6;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-top: 1px solid #1e293b;
+            background: #020617;
+        }
+
+        .footer-link {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover {
+            color: #94a3b8;
+        }
+
+        .upsell {
+            text-align: center;
+        }
+
+        .upsell-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #ef4444;
+        }
+
+        .get-credits-button {
+            background: #22c55e;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin: 20px 0 12px;
+            transition: all 0.2s ease;
+        }
+
+        .get-credits-button:hover {
+            background: #16a34a;
+            transform: translateY(-1px);
+        }
+
+        .maybe-later {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: underline;
+        }
+
+        .error {
+            text-align: center;
+            color: #ef4444;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .scanning {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <span>🛡️</span>
+            <span>AEGIS</span>
+        </div>
+        <div class="credit-badge">
+            <span class="credit-dot"></span>
+            <span id="credits">5 Credits</span>
+        </div>
+    </div>
+
+    <div class="main">
+        <div id="ready-state">
+            <button id="scan-btn" class="scan-button">🔍</button>
+            <h2>Analyze this Page</h2>
+            <p class="subtext">Forensic scan for manipulation & bias.</p>
+        </div>
+
+        <div id="scanning-state" class="hidden">
+            <div class="scan-button scanning">⚡</div>
+            <div id="status" class="status">Extracting text...</div>
+        </div>
+
+        <div id="results-state" class="hidden">
+            <div class="results">
+                <div class="score-display">
+                    <div id="score-value" class="score-value">--</div>
+                    <div class="score-label">A.N.I. Score</div>
+                    <div id="verdict-badge" class="verdict-badge"></div>
+                </div>
+                <div id="summary" class="summary"></div>
+                <button id="scan-next" class="scan-button" style="width: 100%; height: auto; border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 20px;">
+                    Scan Next
+                </button>
+            </div>
+        </div>
+
+        <div id="upsell-state" class="hidden">
+            <div class="upsell">
+                <div class="upsell-icon">🔒</div>
+                <h2>Forensic Limits Reached</h2>
+                <p>You have used your free daily scans. Refuel to continue uncovering the truth.</p>
+                <button class="get-credits-button" onclick="window.open('https://aegis.ai/billing', '_blank')">
+                    Get 50 Credits for $5
+                </button>
+                <br>
+                <button id="maybe-later" class="maybe-later">Maybe Later</button>
+            </div>
+        </div>
+
+        <div id="error-state" class="hidden">
+            <div class="error">
+                <div style="font-size: 48px; margin-bottom: 20px; color: #eab308;">⚠️</div>
+                <h2>Scan Failed</h2>
+                <p id="error-message">An unexpected error occurred.</p>
+                <button id="try-again" class="scan-button" style="width: auto; height: auto; border-radius: 8px; padding: 12px 24px; font-size: 14px; margin-top: 20px;">
+                    Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <a href="#" class="footer-link">Dashboard ↗</a>
+        <a href="#" class="footer-link">Settings ⚙️</a>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
