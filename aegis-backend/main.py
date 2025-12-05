@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.17"  # V3.2 Temporal Verification - Freshness Rule for Financial News
+API_VERSION = "1.0.18"  # V3.3 Mandatory Freshness Override - Fix earnings false positives
 
 @app.get("/")
 def health_check():
