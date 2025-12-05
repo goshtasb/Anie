@@ -43,6 +43,16 @@ else:
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
     """Generate the Psyop Hunter prompt - focused on INTENT, not just facts."""
     return f"""
+**⚠️ CRITICAL PRE-CHECK - READ FIRST:**
+
+**EARNINGS/FINANCIAL REPORT DETECTION:**
+If this article is about a company's earnings, quarterly results, revenue, EPS, or financial guidance:
+→ This is PRIMARY SOURCE reporting (company's official numbers)
+→ Score reality_anchoring at 95 by DEFAULT
+→ Search results showing DIFFERENT numbers are from DIFFERENT time periods (old quarters, forecasts)
+→ "Beating estimates" or "exceeding projections" is NORMAL - that's why earnings reports exist
+→ Only flag if the company literally doesn't exist or numbers are impossible (e.g., $1 trillion daily revenue)
+
 **ROLE:**
 You are the **Aegis Counter-Intelligence Engine**.
 Your mission is NOT to "fact check" the news. Your mission is to **detect Engineered Narratives (Psyops)**.
