@@ -268,7 +268,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Apply in-page highlights to the article
   async function applyPageHighlights(tabId, data) {
-    if (!data.vectors) return;
+    console.log('applyPageHighlights called with:', JSON.stringify(data, null, 2));
+
+    if (!data.vectors) {
+      console.log('No vectors in data, skipping highlights');
+      return;
+    }
 
     // Extract all flagged quotes from vectors with issues
     const evidence = [];
@@ -292,12 +297,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Collect evidence from all problematic vectors
     for (const [key, vec] of Object.entries(data.vectors)) {
-      if (!vec || vec.score >= 80) continue; // Only highlight issues
+      console.log(`Vector ${key}:`, vec);
+      if (!vec || vec.score >= 80) {
+        console.log(`Skipping ${key}: score=${vec?.score}`);
+        continue;
+      }
 
       const severity = key === killerVector ? 'killer' : (vec.score < 40 ? 'critical' : 'warning');
       const reason = vectorLabels[key] || `${key} flagged`;
 
       if (vec.flags && Array.isArray(vec.flags)) {
+        console.log(`Adding ${vec.flags.length} flags from ${key}`);
         vec.flags.forEach(flag => {
           evidence.push({
             text: flag,
@@ -305,10 +315,17 @@ document.addEventListener('DOMContentLoaded', () => {
             reason: reason
           });
         });
+      } else {
+        console.log(`No flags array in ${key}:`, vec.flags);
       }
     }
 
-    if (evidence.length === 0) return;
+    console.log('Total evidence collected:', evidence.length, evidence);
+
+    if (evidence.length === 0) {
+      console.log('No evidence to highlight');
+      return;
+    }
 
     try {
       // 1. Inject the CSS
@@ -431,7 +448,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('Highlights injection complete');
 
     } catch (error) {
-      console.log('Failed to apply highlights:', error.message);
+      console.error('Failed to apply highlights:', error);
+      console.error('Error details:', error.message, error.stack);
     }
   }
 

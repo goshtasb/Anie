@@ -121,21 +121,28 @@ Final Score = 15 (the minimum) -> Engineered Narrative
   "vectors": {{
     "reality_anchoring": {{
       "score": INTEGER,
-      "flags": ["Specific fabrications or context twists found"],
+      "flags": ["EXACT QUOTE from the article text that demonstrates the issue - copy word-for-word"],
       "analysis": "Is the foundation real or invented? Is context weaponized?"
     }},
     "tribal_engineering": {{
       "score": INTEGER,
-      "flags": ["Exact in-group/out-group phrases from the text"],
+      "flags": ["EXACT QUOTE from the article text - the actual phrase used, copied verbatim"],
       "analysis": "Does it create Us vs. Them? Does it shame non-believers?"
     }},
     "neuro_linguistic": {{
       "score": INTEGER,
-      "flags": ["Prescriptive elements: CTAs, moral weight, behavioral commands"],
+      "flags": ["EXACT QUOTE from the article text showing the CTA or prescriptive language - verbatim"],
       "analysis": "DESCRIPTIVE (just facts) or PRESCRIPTIVE (tells you what to do/believe)? Apply Journalism Defense."
     }}
   }}
 }}
+
+**CRITICAL FOR FLAGS:**
+- The "flags" array MUST contain EXACT QUOTES copied directly from the article text
+- Do NOT paraphrase or describe the issue - quote the actual words
+- Example WRONG: "Subtle promotion of American greatness"
+- Example RIGHT: "making America great again through this historic event"
+- If no exact problematic phrase exists, leave flags as empty array []
 """
 
 
