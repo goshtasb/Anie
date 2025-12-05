@@ -1,4 +1,4 @@
-# engine.py - Aegis A.N.I. Engine V3.4 "Psyop Hunter" (Financial Content Detection)
+# engine.py - Aegis A.N.I. Engine V3.5 "Balanced Scoring" (Removed financial override)
 import os
 import json
 import asyncio
@@ -41,77 +41,44 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.3 prompt with MANDATORY temporal verification."""
+    """Generate the Psyop Hunter V3.5 prompt - balanced scoring."""
     return f"""
-<MANDATORY_OVERRIDE_READ_FIRST>
-**STOP. BEFORE YOU ANALYZE ANYTHING, READ THIS RULE:**
-
-**EARNINGS REPORT DETECTION:**
-If the article mentions ANY of these: "earnings", "quarterly", "revenue", "EPS", "fiscal year", "Q1/Q2/Q3/Q4", "beat estimates", "exceeded expectations", "reported today" - THIS IS FINANCIAL BREAKING NEWS.
-
-**THE FRESHNESS PROBLEM (YOU MUST UNDERSTAND THIS):**
-Financial earnings are announced LIVE. Search indices update HOURS or DAYS later.
-- Article says: "Q3 revenue of $2.86B released TODAY"
-- Search results show: "Q2 revenue was $2.5B" (OLD DATA)
-- THIS IS NOT A CONTRADICTION. The search is simply outdated.
-
-**YOUR REQUIRED ACTION FOR EARNINGS/FINANCIAL NEWS:**
-1. **DO NOT** compare article numbers to search result numbers
-2. **DO NOT** flag revenue/EPS/earnings figures as "fabricated" or "misrepresented"
-3. **DO** score reality_anchoring as **85-95** with note: "Fresh financial data - pending index verification"
-4. **DO** focus ONLY on: Is the framing manipulative? Is there a call to action?
-
-**FAILURE MODE TO AVOID:**
-WRONG: "The quarterly revenue figure is significantly higher than projections, indicating potential Zombie Facts"
-RIGHT: "Fresh earnings report data. Numbers not yet in search indices. Framing appears neutral."
-</MANDATORY_OVERRIDE_READ_FIRST>
-
 <system_role>
 You are the **Aegis Counter-Intelligence Engine**.
 Your goal is to detect **Engineered Narratives (Psyops)** and manipulation vectors.
-You are NOT a legacy fact-checker. You differentiate between "Aggressive PR" (Bias) and "Weaponized Reality Distortion" (Psyop).
+You differentiate between legitimate journalism and weaponized information.
 </system_role>
 
 <context>
 Current Date: {current_date}
-Truth Context (Search Results - MAY BE OUTDATED FOR FINANCIAL NEWS): {search_context}
+Truth Context (Search Results): {search_context}
 </context>
 
-<critical_protocol_temporal_verification>
-**REMINDER: FRESHNESS RULE FOR FINANCIAL NEWS**
-If article reports earnings/revenue/quarterly data AND search results don't match:
-- ASSUME the article has fresh data
-- ASSUME search indices are behind
-- Score reality_anchoring 85-95 unless the FRAMING is clearly manipulative
-</critical_protocol_temporal_verification>
-
 <analysis_vectors>
-**1. REALITY ANCHORING (The Foundation)**
-- *Target:* Fabricated sources, "Zombie Facts" (using 2022 data to prove a 2025 crisis), or citing reports that do not exist.
-- *Scoring:*
-  - **0-30:** Explicit fabrication or Zombie Facts.
-  - **31-50:** Real facts but context is weaponized.
-  - **85-100:** Fresh earnings data, verified facts, or plausible breaking news.
+**1. REALITY ANCHORING (The Foundation) - Score 0-100**
+Evaluate whether claims are grounded in reality:
+- **0-30 (FABRICATED):** Made-up sources, non-existent studies, completely false claims
+- **31-50 (MISLEADING):** Real facts taken out of context or weaponized with misleading framing
+- **51-70 (MIXED):** Some verified facts mixed with unverifiable or exaggerated claims
+- **71-85 (MOSTLY ACCURATE):** Generally accurate with minor issues or normal editorial framing
+- **86-100 (VERIFIED):** Well-sourced, factually accurate, properly contextualized
 
-**2. TRIBAL ENGINEERING (The Divide)**
-- *Target:* "Us vs. Them" framing, flattery ("Smart investors know..."), or shaming dissenting views.
-- *Psyop Flags:*
-  - "Sensible people know..."
-  - "The mainstream won't tell you..."
-  - "For those paying attention..."
-- *Scoring:* Deduct points for moral superiority or forced tribal allegiance. 0-30 if strong tribal engineering.
+**2. TRIBAL ENGINEERING (The Divide) - Score 0-100**
+Detect "Us vs. Them" manipulation:
+- **0-30 (WEAPONIZED):** Heavy tribal language, shaming dissenters, "wake up" rhetoric
+  - Flags: "The mainstream won't tell you...", "Smart people know...", "They don't want you to know..."
+- **31-50 (STRONG BIAS):** Clear in-group/out-group framing, moral superiority
+- **51-70 (MODERATE BIAS):** Some editorial slant but not overtly divisive
+- **71-85 (MILD):** Minor partisan framing, normal opinion journalism
+- **86-100 (NEUTRAL):** No tribal manipulation detected
 
-**3. NEURO-LINGUISTIC INTENT (The Command)**
-- *Target:* Distinguish between **Descriptive** (Reporting a crash) and **Prescriptive** (Ordering you to panic/sell).
-- *Financial Exception:* Market terminology like "Plunged," "Soared," or "Cratered" is standard industry lingo. DO NOT flag this as "Emotional Coercion" unless it is coupled with a call to action (e.g., "Sell everything now").
-- *The "Journalism Defense":* Legitimate journalism presents alarming facts (war, climate data) in a calm tone. THIS IS NOT A PSYOP.
-  - **DESCRIPTIVE (SAFE):** "Data shows global stocks are down 20%." (NO action demanded)
-  - **PRESCRIPTIVE (DANGER):** "Global stocks are down, which is why you must exit now." (Commands action)
-- *Scoring:*
-  - **90-100:** Pure data reporting, no behavioral coercion.
-  - **60-89:** Some editorial framing but no commands.
-  - **30-59:** Catastrophic facts LINKED to behavioral commands.
-  - **0-29:** Fear language + urgent calls to action.
+**3. NEURO-LINGUISTIC INTENT (The Command) - Score 0-100**
+Is this DESCRIPTIVE (reporting) or PRESCRIPTIVE (commanding action)?
+- **0-30 (COERCIVE):** Fear + urgent call to action ("Act NOW before it's too late!")
+- **31-50 (MANIPULATIVE):** Emotional pressure with implied behavioral commands
+- **51-70 (PERSUASIVE):** Opinion piece with clear agenda but no urgent commands
+- **71-85 (EDITORIAL):** Some persuasive framing but primarily informative
+- **86-100 (DESCRIPTIVE):** Pure reporting, no behavioral manipulation
 </analysis_vectors>
 
 <verdict_logic>
@@ -154,12 +121,18 @@ Return valid JSON only:
 }}
 </output_schema>
 
+<important_notes>
+- Use the FULL 0-100 range. Not everything is 85.
+- Legitimate news from reputable sources (AP, Reuters, major newspapers) should score 70-95
+- Opinion pieces with clear bias should score 50-70
+- Conspiracy content or misinformation should score 10-40
+- Blatant propaganda should score 0-30
+</important_notes>
+
 <flags_instruction>
 **CRITICAL FOR FLAGS:**
 - The "flags" array MUST contain EXACT QUOTES copied directly from the article text
-- Do NOT paraphrase or describe the issue - quote the actual words
-- Example WRONG: "Subtle promotion of company success"
-- Example RIGHT: "shares soar as holiday demand arrives early"
+- Do NOT paraphrase - quote the actual problematic words
 - If no exact problematic phrase exists, leave flags as empty array []
 </flags_instruction>
 """
@@ -319,15 +292,7 @@ async def search_for_truth_context(extracted: dict) -> dict:
         return {"results": [], "sources": []}
 
 
-def detect_financial_content(text: str, title: str) -> bool:
-    """Detect if article is financial/earnings news."""
-    combined = f"{title or ''} {text}".lower()
-    financial_keywords = [
-        "earnings", "quarterly", "revenue", "eps", "fiscal year",
-        "q1", "q2", "q3", "q4", "beat estimates", "exceeded expectations",
-        "reported today", "profit", "guidance", "forecast", "same-store sales"
-    ]
-    return any(kw in combined for kw in financial_keywords)
+# Financial detection removed - let the AI analyze naturally without overrides
 
 
 async def psyop_analysis(text: str, title: str, search_results: dict, current_date: str) -> dict:
@@ -335,22 +300,7 @@ async def psyop_analysis(text: str, title: str, search_results: dict, current_da
     try:
         search_context = "\n".join(search_results.get("results", ["No search results available"]))
 
-        # Detect financial content and add explicit reminder
-        is_financial = detect_financial_content(text, title)
-        financial_reminder = ""
-        if is_financial:
-            financial_reminder = """
-**⚠️ FINANCIAL/EARNINGS ARTICLE DETECTED ⚠️**
-This appears to be a financial news article. Remember:
-- DO NOT flag revenue/earnings numbers as "fabricated" just because search results differ
-- Search indices are STALE for breaking financial news
-- Score reality_anchoring 85-95 unless FRAMING is manipulative
-- Focus on: Is there a manipulative call to action? Not: Do the numbers match old data?
-"""
-            print("📊 Financial content detected - applying Freshness Rule")
-
         prompt = f"""
-{financial_reminder}
 **ARTICLE TITLE:** {title or "Untitled"}
 
 **ARTICLE TEXT:**
@@ -358,7 +308,6 @@ This appears to be a financial news article. Remember:
 
 Analyze this article using the Psyop Hunter protocol. Focus on INTENT - what behavior is this trying to force?
 Remember: A psyop can use TRUE facts to create a FALSE reality.
-{"REMINDER: This is FINANCIAL NEWS - apply the Freshness Rule for reality_anchoring." if is_financial else ""}
 """
 
         completion = await client.chat.completions.create(

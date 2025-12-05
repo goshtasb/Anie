@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.25"  # V3.9 Archive fallback for paywalled sites
+API_VERSION = "1.0.26"  # V3.5 Balanced scoring - removed 85 override
 
 @app.get("/")
 def health_check():
