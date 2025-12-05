@@ -25,6 +25,13 @@ REQUEST_HEADERS = {
 # Timeout for fetching pages
 FETCH_TIMEOUT = 15.0
 
+# Known paywall domains - give users a helpful message
+PAYWALL_DOMAINS = [
+    'wsj.com', 'nytimes.com', 'ft.com', 'bloomberg.com',
+    'economist.com', 'barrons.com', 'theathletic.com',
+    'washingtonpost.com', 'latimes.com'
+]
+
 # Elements to remove (ads, nav, comments, etc.)
 NOISE_TAGS = [
     'script', 'style', 'noscript', 'iframe', 'svg', 'canvas',
@@ -148,6 +155,19 @@ async def scrape_article(url: str) -> dict:
             response = await client.get(url, headers=REQUEST_HEADERS)
 
             if response.status_code != 200:
+                # Check if it's a known paywall site
+                is_paywall = any(pw in domain for pw in PAYWALL_DOMAINS)
+
+                if response.status_code in [401, 403] and is_paywall:
+                    return {
+                        "success": False,
+                        "error": f"This site requires a subscription. Use the Chrome extension while logged in to scan paywalled articles."
+                    }
+                elif response.status_code in [401, 403]:
+                    return {
+                        "success": False,
+                        "error": f"Access denied by {domain}. Try using the Chrome extension instead."
+                    }
                 return {
                     "success": False,
                     "error": f"HTTP {response.status_code}: Could not fetch page"

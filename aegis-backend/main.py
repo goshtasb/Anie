@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.22"  # V3.6 Server-side scraping for mobile/web
+API_VERSION = "1.0.23"  # V3.7 Better paywall error messages
 
 @app.get("/")
 def health_check():
