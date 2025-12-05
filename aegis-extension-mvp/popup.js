@@ -323,17 +323,27 @@ document.addEventListener('DOMContentLoaded', () => {
         files: ['highlighter.js']
       });
 
-      // 3. Send the evidence to highlight
-      chrome.tabs.sendMessage(tabId, {
-        action: "HIGHLIGHT_EVIDENCE",
-        evidence: evidence
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.log('Highlight message error:', chrome.runtime.lastError.message);
-          return;
-        }
-        console.log('Highlights applied:', response);
-      });
+      // 3. Wait for script to initialize its listener
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // 4. Send the evidence to highlight (with retry)
+      const sendWithRetry = (attempt = 1) => {
+        chrome.tabs.sendMessage(tabId, {
+          action: "HIGHLIGHT_EVIDENCE",
+          evidence: evidence
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.log('Highlight message error (attempt ' + attempt + '):', chrome.runtime.lastError.message);
+            // Retry up to 3 times with increasing delay
+            if (attempt < 3) {
+              setTimeout(() => sendWithRetry(attempt + 1), 200 * attempt);
+            }
+            return;
+          }
+          console.log('Highlights applied:', response);
+        });
+      };
+      sendWithRetry();
 
     } catch (error) {
       console.log('Failed to apply highlights:', error.message);
