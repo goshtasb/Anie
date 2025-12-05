@@ -141,14 +141,36 @@ def extract_title(soup: BeautifulSoup) -> str:
     return "Untitled Article"
 
 
+async def try_archive_fallback(url: str, client: httpx.AsyncClient) -> tuple[str, str]:
+    """
+    Try to fetch article from archive.today as a fallback for paywalled content.
+    Returns: (html, source) or (None, None) if failed
+    """
+    archive_url = f"https://archive.today/newest/{url}"
+    print(f"📦 Trying archive fallback: {archive_url[:50]}...")
+
+    try:
+        response = await client.get(archive_url, headers=REQUEST_HEADERS, timeout=12.0)
+        if response.status_code == 200:
+            print("✅ Archive hit!")
+            return response.text, "archive.today"
+    except Exception as e:
+        print(f"⚠️ Archive fallback failed: {e}")
+
+    return None, None
+
+
 async def scrape_article(url: str) -> dict:
     """
-    Scrape article content from a URL.
+    Scrape article content from a URL with smart fallback.
+    If direct access fails (403/401), tries archive.today as backdoor.
+
     Returns: {
         "success": bool,
         "text": str,
         "title": str,
         "domain": str,
+        "source": str (direct/archive),
         "error": str (if failed)
     }
     """
@@ -159,30 +181,43 @@ async def scrape_article(url: str) -> dict:
 
         print(f"🌐 Scraping: {url[:60]}...")
 
+        html = None
+        source = "direct"
+
         # Fetch the page with browser-like headers
         async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
             response = await client.get(url, headers=REQUEST_HEADERS)
 
-            if response.status_code != 200:
-                # Check if it's a known paywall site
-                is_paywall = any(pw in domain for pw in PAYWALL_DOMAINS)
+            if response.status_code == 200:
+                html = response.text
+            elif response.status_code in [401, 403, 429]:
+                # BLOCKED! Try the archive backdoor
+                print(f"⚠️ Direct access blocked ({response.status_code}). Trying archives...")
+                html, source = await try_archive_fallback(url, client)
 
-                if response.status_code in [401, 403] and is_paywall:
-                    return {
-                        "success": False,
-                        "error": f"This site requires a subscription. Use the Chrome extension while logged in to scan paywalled articles."
-                    }
-                elif response.status_code in [401, 403]:
+                if not html:
+                    # Archive also failed - give helpful error
+                    is_paywall = any(pw in domain for pw in PAYWALL_DOMAINS)
+                    if is_paywall:
+                        return {
+                            "success": False,
+                            "error": f"This site requires a subscription and no archive is available. Use the Chrome extension while logged in."
+                        }
                     return {
                         "success": False,
                         "error": f"Access denied by {domain}. Try using the Chrome extension instead."
                     }
+            else:
                 return {
                     "success": False,
                     "error": f"HTTP {response.status_code}: Could not fetch page"
                 }
 
-            html = response.text
+        if not html:
+            return {
+                "success": False,
+                "error": "Could not fetch page content"
+            }
 
         # Parse HTML
         soup = BeautifulSoup(html, 'lxml')
@@ -199,13 +234,14 @@ async def scrape_article(url: str) -> dict:
         # Extract title
         title = extract_title(soup)
 
-        print(f"✅ Scraped: {len(text)} chars from {domain}")
+        print(f"✅ Scraped: {len(text)} chars from {domain} (via {source})")
 
         return {
             "success": True,
             "text": text[:15000],  # Max 15k chars (same as extension)
             "title": title,
             "domain": domain,
+            "source": source,
             "canonical_url": url
         }
 

@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.24"  # V3.8 Fix scraper destroying article content
+API_VERSION = "1.0.25"  # V3.9 Archive fallback for paywalled sites
 
 @app.get("/")
 def health_check():
