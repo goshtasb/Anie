@@ -1,7 +1,9 @@
-# engine.py - Aegis A.N.I. Engine V3.0 "Psyop Hunter"
+# engine.py - Aegis A.N.I. Engine V3.1 "Psyop Hunter" (Parallel Swarm)
 import os
 import json
+import asyncio
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from openai import AsyncOpenAI
 from schemas import ANIResponse, VectorScore, FactCheckVector
 from dotenv import load_dotenv
@@ -19,7 +21,7 @@ if xai_key and not xai_key.startswith("xai-your"):
         base_url="https://api.x.ai/v1"
     )
     MODEL = "grok-3-mini"
-    print("🚀 Engine V3.0: xAI Grok-3 (Psyop Hunter)")
+    print("🚀 Engine V3.1: xAI Grok-3 (Parallel Swarm)")
 else:
     client = AsyncOpenAI(api_key=openai_key)
     MODEL = "gpt-4o-mini"
@@ -31,7 +33,7 @@ if tavily_key and not tavily_key.startswith("tvly-your"):
     try:
         from tavily import TavilyClient
         tavily_client = TavilyClient(api_key=tavily_key)
-        print("✅ Truth Layer V3.0: Psyop Hunter ACTIVE")
+        print("✅ Truth Layer V3.1: Parallel Swarm ACTIVE")
     except ImportError:
         print("⚠️ Truth Layer: tavily-python not installed")
 else:
@@ -192,8 +194,36 @@ async def extract_sources(text: str, current_date: str) -> dict:
         return {"citations": [], "anonymous_sources": [], "urgency_signals": []}
 
 
-def search_for_truth_context(extracted: dict) -> dict:
-    """Search Tavily to build Truth Context for comparison."""
+# Thread pool for running sync Tavily calls in parallel
+_executor = ThreadPoolExecutor(max_workers=3)
+
+
+def _single_tavily_search(citation: dict) -> dict:
+    """Execute a single Tavily search (runs in thread pool)."""
+    query = citation.get("search_query", "")
+    if not query or not tavily_client:
+        return None
+
+    source = citation.get("source_cited", "Unknown")
+    print(f"🔍 Hunting: [{source}] {query[:60]}...")
+
+    try:
+        response = tavily_client.search(
+            query=query,
+            search_depth="basic",  # "basic" is 2x faster than "advanced"
+            max_results=3,
+            include_domains=["usda.gov", "fao.org", "reuters.com", "apnews.com",
+                           "gov", "edu", "un.org", "who.int", "bbc.com"],
+            include_answer=True
+        )
+        return {"citation": citation, "response": response}
+    except Exception as e:
+        print(f"Search error for [{source}]: {e}")
+        return None
+
+
+async def search_for_truth_context(extracted: dict) -> dict:
+    """Search Tavily in PARALLEL to build Truth Context for comparison."""
     if not tavily_client:
         return {"results": [], "sources": []}
 
@@ -202,40 +232,40 @@ def search_for_truth_context(extracted: dict) -> dict:
         return {"results": [], "sources": []}
 
     try:
+        # Run all searches in parallel using thread pool
+        loop = asyncio.get_event_loop()
+        search_tasks = [
+            loop.run_in_executor(_executor, _single_tavily_search, citation)
+            for citation in citations[:3]
+        ]
+
+        print(f"🚀 Parallel Swarm: Launching {len(search_tasks)} searches simultaneously...")
+        search_results = await asyncio.gather(*search_tasks)
+
+        # Process results
         results_text = []
         sources = []
 
-        for citation in citations[:3]:
-            query = citation.get("search_query", "")
-            if not query:
+        for result in search_results:
+            if not result:
                 continue
 
-            source = citation.get("source_cited", "Unknown")
-            print(f"🔍 Hunting: [{source}] {query[:60]}...")
+            citation = result["citation"]
+            response = result["response"]
 
-            response = tavily_client.search(
-                query=query,
-                search_depth="advanced",
-                max_results=3,
-                include_domains=["usda.gov", "fao.org", "reuters.com", "apnews.com",
-                               "gov", "edu", "un.org", "who.int", "bbc.com"],
-                include_answer=True
-            )
-
-            result_block = f"\n=== VERIFYING: {citation.get('claim', query)} ===\n"
-            result_block += f"Source Cited: {source}\n"
+            result_block = f"\n=== VERIFYING: {citation.get('claim', citation.get('search_query', ''))} ===\n"
+            result_block += f"Source Cited: {citation.get('source_cited', 'Unknown')}\n"
             result_block += f"Timeframe Claimed: {citation.get('timeframe', 'unspecified')}\n"
 
             if response.get("answer"):
                 result_block += f"TRUTH: {response['answer']}\n"
 
-            for result in response.get("results", [])[:3]:
-                result_block += f"\nFound: {result.get('title', 'Unknown')}\n"
-                result_block += f"  Date: Check URL for publication date\n"
-                result_block += f"  URL: {result.get('url', '')}\n"
-                result_block += f"  Content: {result.get('content', '')[:300]}\n"
-                if result.get("url"):
-                    sources.append(result["url"])
+            for r in response.get("results", [])[:3]:
+                result_block += f"\nFound: {r.get('title', 'Unknown')}\n"
+                result_block += f"  URL: {r.get('url', '')}\n"
+                result_block += f"  Content: {r.get('content', '')[:300]}\n"
+                if r.get("url"):
+                    sources.append(r["url"])
 
             if not response.get("results"):
                 result_block += "⚠️ NO SUPPORTING DOCUMENTS FOUND - Citation may be fabricated\n"
@@ -250,6 +280,8 @@ def search_for_truth_context(extracted: dict) -> dict:
         urgency = extracted.get("urgency_signals", [])
         if urgency:
             results_text.append(f"\n=== URGENCY SIGNALS DETECTED ===\n{chr(10).join(urgency)}")
+
+        print(f"✅ Swarm complete: {len(results_text)} verification blocks")
 
         return {
             "results": results_text,
@@ -310,7 +342,7 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
         # PHASE 1: Source & Signal Extraction
         # ============================================================
         if tavily_client:
-            print(f"🎯 Psyop Hunter V3.0: Extracting sources and signals...")
+            print(f"🎯 Psyop Hunter V3.1: Extracting sources and signals...")
             extracted = await extract_sources(text, current_date)
 
             citations = extracted.get("citations", [])
@@ -318,9 +350,9 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
             print(f"🎯 Found {len(citations)} citations, {len(anon_sources)} anonymous sources")
 
             # ============================================================
-            # PHASE 2: Truth Context Search
+            # PHASE 2: Truth Context Search (PARALLEL)
             # ============================================================
-            search_results = search_for_truth_context(extracted)
+            search_results = await search_for_truth_context(extracted)
 
             # ============================================================
             # PHASE 3: Psyop Analysis (Intent Detection)
