@@ -78,6 +78,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (response.status === "success") {
             // RENDER THE DOSSIER (State 3 from Golden Path)
             renderDossier(response.data);
+
+            // TRIGGER IN-PAGE HIGHLIGHTS
+            applyPageHighlights(tab.id, response.data);
           } else if (response.code === "NO_CREDITS") {
             // RENDER UPSELL (State 4)
             showState('upsell');
@@ -261,6 +264,80 @@ document.addEventListener('DOMContentLoaded', () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Apply in-page highlights to the article
+  async function applyPageHighlights(tabId, data) {
+    if (!data.vectors) return;
+
+    // Extract all flagged quotes from vectors with issues
+    const evidence = [];
+    const vectorLabels = {
+      'reality': 'Reality Anchoring Issue',
+      'tribal': 'Tribal Engineering Detected',
+      'neuro': 'Manipulative Intent'
+    };
+
+    // Find the killer vector
+    let killerVector = null;
+    if (data.ani_score < 40) {
+      let lowestScore = 100;
+      for (const [key, vec] of Object.entries(data.vectors)) {
+        if (vec && vec.score < lowestScore) {
+          lowestScore = vec.score;
+          killerVector = key;
+        }
+      }
+    }
+
+    // Collect evidence from all problematic vectors
+    for (const [key, vec] of Object.entries(data.vectors)) {
+      if (!vec || vec.score >= 80) continue; // Only highlight issues
+
+      const severity = key === killerVector ? 'killer' : (vec.score < 40 ? 'critical' : 'warning');
+      const reason = vectorLabels[key] || `${key} flagged`;
+
+      if (vec.flags && Array.isArray(vec.flags)) {
+        vec.flags.forEach(flag => {
+          evidence.push({
+            text: flag,
+            severity: severity,
+            reason: reason
+          });
+        });
+      }
+    }
+
+    if (evidence.length === 0) return;
+
+    try {
+      // 1. Inject the CSS
+      await chrome.scripting.insertCSS({
+        target: { tabId: tabId },
+        files: ['highlights.css']
+      });
+
+      // 2. Inject the highlighter script
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['highlighter.js']
+      });
+
+      // 3. Send the evidence to highlight
+      chrome.tabs.sendMessage(tabId, {
+        action: "HIGHLIGHT_EVIDENCE",
+        evidence: evidence
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.log('Highlight message error:', chrome.runtime.lastError.message);
+          return;
+        }
+        console.log('Highlights applied:', response);
+      });
+
+    } catch (error) {
+      console.log('Failed to apply highlights:', error.message);
+    }
   }
 
   // Event handlers for other buttons
