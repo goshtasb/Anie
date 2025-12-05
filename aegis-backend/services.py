@@ -40,14 +40,18 @@ def get_stable_hash(url: str) -> str:
 def check_cache(url: str):
     """Check cache using stable URL hash with 24-hour TTL."""
     if not supabase:
+        print("⚠️ Cache Check: Supabase not configured, skipping cache")
         return None
 
     url_hash = get_stable_hash(url)
+    print(f"🔍 Cache Check: hash={url_hash[:12]}... for URL: {url[:60]}...")
 
     try:
         response = supabase.table("scan_cache").select("*").eq("url_hash", url_hash).execute()
         if len(response.data) > 0:
             cached_entry = response.data[0]
+            cached_score = cached_entry.get("ani_score", "?")
+            print(f"📦 Cache Entry Found: score={cached_score}")
 
             # Check TTL - cache expires after 24 hours
             created_at = cached_entry.get("created_at")
@@ -57,19 +61,27 @@ def check_cache(url: str):
                     cache_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                     now = datetime.now(timezone.utc)
                     age_hours = (now - cache_time).total_seconds() / 3600
+                    print(f"⏱️ Cache Age: {age_hours:.1f} hours (TTL: {CACHE_TTL_HOURS}h)")
 
                     if age_hours > CACHE_TTL_HOURS:
-                        print(f"⏰ Cache Expired ({age_hours:.1f}h old): {url[:60]}...")
+                        print(f"⏰ Cache EXPIRED ({age_hours:.1f}h > {CACHE_TTL_HOURS}h) - Deleting...")
                         # Delete stale entry
                         supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
+                        print("🗑️ Stale cache entry deleted, will call Grok fresh")
                         return None
                 except Exception as e:
-                    print(f"Cache TTL check error: {e}")
+                    print(f"⚠️ Cache TTL parse error: {e}")
+            else:
+                print("⚠️ Cache entry has no created_at - treating as expired (legacy entry)")
+                supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
+                return None
 
-            print(f"✅ Cache Hit (Canonical URL): {url[:60]}...")
+            print(f"✅ Cache HIT (valid, {age_hours:.1f}h old): returning cached score={cached_score}")
             return cached_entry["scan_data"]
+        else:
+            print("📭 Cache MISS: No entry found, will call Grok")
     except Exception as e:
-        print(f"Cache Check Error: {e}")
+        print(f"❌ Cache Check Error: {e}")
 
     return None
 

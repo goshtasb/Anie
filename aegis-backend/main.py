@@ -17,11 +17,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.20"  # V3.4 Financial content detection in user message
+API_VERSION = "1.0.21"  # V3.5 Cache debugging + force-clear endpoint
 
 @app.get("/")
 def health_check():
     return {"status": "Aegis Systems Online (Alpha Mode)", "version": API_VERSION}
+
+
+@app.delete("/v1/cache/clear")
+async def clear_cache_endpoint(url: str = None):
+    """
+    DEBUG ENDPOINT: Force-clear the cache for a specific URL or all entries.
+    Use this when testing to ensure Grok is actually called.
+    """
+    if url:
+        # Clear specific URL
+        success = services.clear_cache(url)
+        return {"cleared": success, "url": url}
+    else:
+        # Clear ALL cache (nuclear option)
+        if services.supabase:
+            try:
+                # Delete all entries
+                services.supabase.table("scan_cache").delete().neq("url_hash", "").execute()
+                print("🗑️ NUCLEAR: All cache entries cleared")
+                return {"cleared": True, "message": "All cache cleared"}
+            except Exception as e:
+                return {"cleared": False, "error": str(e)}
+        return {"cleared": False, "message": "Supabase not configured"}
 
 @app.post("/v1/scan", response_model=ANIResponse)
 async def scan_endpoint(
