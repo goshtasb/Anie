@@ -1,9 +1,13 @@
 import os
 import hashlib
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Cache TTL: 24 hours (stories evolve, search indices update)
+CACHE_TTL_HOURS = 24
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
@@ -34,7 +38,7 @@ def get_stable_hash(url: str) -> str:
 
 
 def check_cache(url: str):
-    """Check cache using stable URL hash."""
+    """Check cache using stable URL hash with 24-hour TTL."""
     if not supabase:
         return None
 
@@ -43,8 +47,27 @@ def check_cache(url: str):
     try:
         response = supabase.table("scan_cache").select("*").eq("url_hash", url_hash).execute()
         if len(response.data) > 0:
+            cached_entry = response.data[0]
+
+            # Check TTL - cache expires after 24 hours
+            created_at = cached_entry.get("created_at")
+            if created_at:
+                # Parse ISO timestamp from Supabase
+                try:
+                    cache_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    now = datetime.now(timezone.utc)
+                    age_hours = (now - cache_time).total_seconds() / 3600
+
+                    if age_hours > CACHE_TTL_HOURS:
+                        print(f"⏰ Cache Expired ({age_hours:.1f}h old): {url[:60]}...")
+                        # Delete stale entry
+                        supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
+                        return None
+                except Exception as e:
+                    print(f"Cache TTL check error: {e}")
+
             print(f"✅ Cache Hit (Canonical URL): {url[:60]}...")
-            return response.data[0]["scan_data"]
+            return cached_entry["scan_data"]
     except Exception as e:
         print(f"Cache Check Error: {e}")
 
@@ -59,13 +82,39 @@ def save_to_cache(url: str, data: dict, ani_score: int):
     url_hash = get_stable_hash(url)
 
     try:
-        supabase.table("scan_cache").insert({
+        # Upsert: replace existing entry (handles re-scans after TTL expiry)
+        supabase.table("scan_cache").upsert({
             "url_hash": url_hash,
             "url": url,
             "ani_score": ani_score,
             "scan_data": data
-        }).execute()
+        }, on_conflict="url_hash").execute()
         print(f"💾 Saved to Cache (Canonical): {url[:60]}...")
     except Exception as e:
-        # Likely duplicate - that's fine
-        print(f"Cache Save (may be duplicate): {e}")
+        # Fallback to insert if upsert fails
+        try:
+            supabase.table("scan_cache").insert({
+                "url_hash": url_hash,
+                "url": url,
+                "ani_score": ani_score,
+                "scan_data": data
+            }).execute()
+            print(f"💾 Saved to Cache (Insert): {url[:60]}...")
+        except Exception as e2:
+            print(f"Cache Save Error: {e2}")
+
+
+def clear_cache(url: str) -> bool:
+    """Manually clear a cached URL (for testing/debugging)."""
+    if not supabase:
+        return False
+
+    url_hash = get_stable_hash(url)
+
+    try:
+        supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
+        print(f"🗑️ Cache Cleared: {url[:60]}...")
+        return True
+    except Exception as e:
+        print(f"Cache Clear Error: {e}")
+        return False

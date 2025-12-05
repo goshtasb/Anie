@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.18"  # V3.3 Mandatory Freshness Override - Fix earnings false positives
+API_VERSION = "1.0.19"  # V3.3 + 24h Cache TTL (stories evolve)
 
 @app.get("/")
 def health_check():
