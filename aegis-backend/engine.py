@@ -152,7 +152,8 @@ Final Score = 15 (the minimum) -> Engineered Narrative
 
 **OUTPUT SCHEMA (JSON ONLY):**
 {{
-  "ani_score": INTEGER (MUST be MINIMUM of vector scores),
+  "article_type": "FIRST classify as one of: [EARNINGS_REPORT, FINANCIAL_NEWS, POLITICAL, OPINION, GENERAL_NEWS, OTHER]",
+  "ani_score": INTEGER (MUST be MINIMUM of vector scores - BUT if article_type=EARNINGS_REPORT, reality_anchoring MUST be 95+),
   "verdict": "One of: [Organic Reporting, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
   "summary": "Focus on the INTENT behind the narrative. What behavior is this trying to force?",
   "vectors": {{
@@ -427,12 +428,32 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                             analysis=v.get("analysis", "No analysis")
                         )
 
+                # EARNINGS REPORT OVERRIDE
+                # If AI classified as EARNINGS_REPORT but gave low reality score, override it
+                article_type = analysis.get("article_type", "OTHER")
+                if article_type == "EARNINGS_REPORT":
+                    reality_score = raw_vectors.get("reality_anchoring", {}).get("score", 50)
+                    if reality_score < 85:
+                        print(f"⚠️ EARNINGS OVERRIDE: AI gave reality={reality_score} for earnings report, overriding to 95")
+                        raw_vectors["reality_anchoring"]["score"] = 95
+                        raw_vectors["reality_anchoring"]["flags"] = []
+                        raw_vectors["reality_anchoring"]["analysis"] = "Earnings report: Primary source financial data from company filings."
+                        # Update the VectorScore we already created
+                        if "reality" in vectors:
+                            vectors["reality"] = VectorScore(
+                                score=95,
+                                flags=[],
+                                analysis="Earnings report: Primary source financial data from company filings."
+                            )
+                        # Recalculate vector_scores
+                        vector_scores = [v.score for v in vectors.values()]
+
                 # ENFORCE MINIMUM SCORE RULE
                 ai_score = analysis.get("ani_score", 50)
                 min_vector = min(vector_scores) if vector_scores else 50
                 final_score = min(ai_score, min_vector)
 
-                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, Final={final_score}")
+                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, Final={final_score}, ArticleType={article_type}")
 
                 # Determine verdict based on final score
                 if final_score <= 30:
