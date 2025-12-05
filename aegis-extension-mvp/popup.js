@@ -298,8 +298,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Collect evidence from all problematic vectors
     for (const [key, vec] of Object.entries(data.vectors)) {
       console.log(`Vector ${key}:`, vec);
-      if (!vec || vec.score >= 80) {
-        console.log(`Skipping ${key}: score=${vec?.score}`);
+      // Include any vector with flags, regardless of score (for highlighting)
+      if (!vec) {
+        console.log(`Skipping ${key}: no data`);
+        continue;
+      }
+      // Skip only perfect scores with no flags
+      if (vec.score >= 95 && (!vec.flags || vec.flags.length === 0)) {
+        console.log(`Skipping ${key}: score=${vec?.score}, no flags`);
         continue;
       }
 
@@ -342,6 +348,14 @@ document.addEventListener('DOMContentLoaded', () => {
           // Inline highlighter function
           function cleanPhrase(text) {
             if (!text) return '';
+
+            // Try to extract quoted text if the flag contains a description followed by a quote
+            // Pattern: "Description: 'actual quote'" or "Description: \"actual quote\""
+            const quoteMatch = text.match(/['""'']([^'""'']{10,})['""'']/);
+            if (quoteMatch) {
+              text = quoteMatch[1];
+            }
+
             return text
               .replace(/^["'""'']+|["'""'']+$/g, '')
               .replace(/\s+/g, ' ')
@@ -441,6 +455,58 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           console.log('Anie: Applied ' + highlightCount + ' highlights');
+
+          // Add tooltip positioning on hover
+          document.querySelectorAll('[class*="anie-highlight"]').forEach(el => {
+            el.addEventListener('mouseenter', function(e) {
+              const reason = this.getAttribute('data-anie-reason');
+              if (!reason) return;
+
+              // Create or get tooltip element
+              let tooltip = document.getElementById('anie-tooltip');
+              if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'anie-tooltip';
+                tooltip.style.cssText = `
+                  position: fixed;
+                  background: #1e293b;
+                  color: #f8fafc;
+                  padding: 10px 14px;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  font-weight: 500;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                  line-height: 1.4;
+                  z-index: 2147483647;
+                  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+                  max-width: 300px;
+                  pointer-events: none;
+                  opacity: 0;
+                  transition: opacity 0.2s;
+                `;
+                document.body.appendChild(tooltip);
+              }
+
+              tooltip.textContent = reason;
+              tooltip.style.opacity = '1';
+
+              // Position near the element
+              const rect = this.getBoundingClientRect();
+              tooltip.style.left = Math.max(10, rect.left) + 'px';
+              tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+
+              // If tooltip goes above viewport, show below
+              if (rect.top - tooltip.offsetHeight - 8 < 10) {
+                tooltip.style.top = (rect.bottom + 8) + 'px';
+              }
+            });
+
+            el.addEventListener('mouseleave', function() {
+              const tooltip = document.getElementById('anie-tooltip');
+              if (tooltip) tooltip.style.opacity = '0';
+            });
+          });
+
           return { count: highlightCount };
         }
       });
