@@ -49,7 +49,13 @@
             '[aria-hidden="true"]',
             // Semantic roles for non-content
             '[role="complementary"]', '[role="navigation"]', '[role="banner"]',
-            '[role="contentinfo"]'
+            '[role="contentinfo"]',
+            // Stock tickers and financial widgets (real-time data, not article content)
+            '[class*="stock"]', '[class*="ticker"]', '[class*="quote"]',
+            '[class*="market"]', '[class*="price"]', '[class*="chart"]',
+            '[data-symbol]', '[data-ticker]',
+            '.stock-widget', '.market-data', '.quote-widget',
+            '[class*="Stock"]', '[class*="Ticker"]', '[class*="Quote"]'
         ];
 
         // 3. Cut them out
