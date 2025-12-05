@@ -107,32 +107,118 @@ document.addEventListener('DOMContentLoaded', () => {
       creditsSpan.textContent = `${credits} Credits`;
     });
 
-    // For MVP, create mock data if API returns minimal response
-    const mockData = {
-      ani_score: data.ani_score || 42,
-      summary: data.summary || "This article relies heavily on emotional language and unnamed sources to frame a negative narrative, despite lacking primary evidence.",
-      verdict: data.verdict || "High Manipulation Detected"
-    };
-
     // Set score and color
     const scoreValue = document.getElementById('score-value');
     const verdictBadge = document.getElementById('verdict-badge');
     const summary = document.getElementById('summary');
+    const evidenceLocker = document.getElementById('evidence-locker');
 
-    scoreValue.textContent = mockData.ani_score;
-    verdictBadge.textContent = mockData.verdict;
-    summary.textContent = mockData.summary;
+    const score = data.ani_score || 50;
+    scoreValue.textContent = score;
+    verdictBadge.textContent = data.verdict || "Analysis Complete";
+    summary.textContent = data.summary || "Analysis complete.";
 
     // Color coding based on score
     let colorClass = 'verdict-red';
-    if (mockData.ani_score >= 70) colorClass = 'verdict-green';
-    else if (mockData.ani_score >= 40) colorClass = 'verdict-yellow';
+    if (score >= 70) colorClass = 'verdict-green';
+    else if (score >= 40) colorClass = 'verdict-yellow';
 
     verdictBadge.className = `verdict-badge ${colorClass}`;
     scoreValue.style.color = colorClass === 'verdict-red' ? '#ef4444' :
                             colorClass === 'verdict-yellow' ? '#eab308' : '#22c55e';
 
+    // Render Evidence Locker (Vector Breakdown)
+    evidenceLocker.innerHTML = renderEvidenceLocker(data.vectors);
+
+    // Add click handlers for accordion
+    evidenceLocker.querySelectorAll('.vector-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const item = header.parentElement;
+        item.classList.toggle('expanded');
+        const details = item.querySelector('.vector-details');
+        if (details) {
+          details.style.display = item.classList.contains('expanded') ? 'block' : 'none';
+        }
+      });
+    });
+
     showState('results');
+  }
+
+  // Evidence Locker renderer
+  function renderEvidenceLocker(vectors) {
+    if (!vectors || Object.keys(vectors).length === 0) {
+      return '';
+    }
+
+    // Map backend vector keys to human-readable labels
+    const vectorLabels = {
+      'reality': 'Reality Anchoring',
+      'tribal': 'Tribal Engineering',
+      'neuro': 'Intent Analysis',
+      // Legacy names (if backend uses these)
+      'reality_anchoring': 'Reality Anchoring',
+      'tribal_engineering': 'Tribal Engineering',
+      'neuro_linguistic': 'Intent Analysis',
+      // Original names
+      'authority': 'Authority Check',
+      'emotion': 'Emotional Language',
+      'logic': 'Logical Structure',
+      'headline': 'Headline Accuracy'
+    };
+
+    let html = '<div class="evidence-header">Forensic Breakdown</div>';
+
+    for (const [key, vec] of Object.entries(vectors)) {
+      if (!vec) continue;
+
+      const label = vectorLabels[key] || key;
+      const score = vec.score || 50;
+      const isIssue = score < 70;
+      const icon = isIssue ? '⚠️' : '✓';
+      const scoreClass = score < 40 ? 'low' : score < 70 ? 'mid' : 'high';
+
+      html += `
+        <div class="vector-item ${isIssue ? 'issue' : 'clean'}">
+          <div class="vector-header">
+            <span class="vec-label">${icon} ${label}</span>
+            <span class="vec-score ${scoreClass}">${score}/100</span>
+          </div>
+          ${isIssue ? `
+            <div class="vector-details" style="display: none;">
+              <p class="analysis">${vec.analysis || 'No details available.'}</p>
+              ${renderFlags(vec.flags)}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    return html;
+  }
+
+  // Helper to render flagged quotes/evidence
+  function renderFlags(flags) {
+    if (!flags || flags.length === 0) return '';
+
+    const list = Array.isArray(flags) ? flags : [flags];
+    if (list.length === 0) return '';
+
+    return `
+      <div class="flag-list">
+        <strong>Evidence Found:</strong>
+        <ul>
+          ${list.map(f => `<li>"${escapeHtml(f)}"</li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  // Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   // Event handlers for other buttons

@@ -172,6 +172,125 @@
             line-height: 1.6;
         }
 
+        /* Evidence Locker */
+        .evidence-locker {
+            margin-top: 16px;
+        }
+
+        .evidence-header {
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .vector-item {
+            background: #1e293b;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #334155;
+        }
+
+        .vector-item.issue {
+            border-left: 3px solid #ef4444;
+        }
+
+        .vector-item.clean {
+            border-left: 3px solid #22c55e;
+        }
+
+        .vector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .vector-header:hover {
+            background: #334155;
+        }
+
+        .vec-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: #f8fafc;
+        }
+
+        .vec-score {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #0f172a;
+        }
+
+        .vec-score.low {
+            color: #fca5a5;
+        }
+
+        .vec-score.mid {
+            color: #fde047;
+        }
+
+        .vec-score.high {
+            color: #86efac;
+        }
+
+        .vector-details {
+            padding: 0 12px 12px;
+            border-top: 1px solid #334155;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .vector-details .analysis {
+            margin: 10px 0;
+        }
+
+        .flag-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: #0f172a;
+            border-radius: 6px;
+        }
+
+        .flag-list strong {
+            color: #64748b;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .flag-list ul {
+            margin: 8px 0 0 0;
+            padding-left: 16px;
+            color: #fca5a5;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 11px;
+        }
+
+        .flag-list li {
+            margin-bottom: 4px;
+        }
+
+        .expand-icon {
+            color: #64748b;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .vector-item.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
         .footer {
             display: flex;
             justify-content: space-between;
@@ -281,6 +400,10 @@
                     <div id="verdict-badge" class="verdict-badge"></div>
                 </div>
                 <div id="summary" class="summary"></div>
+
+                <!-- Evidence Locker -->
+                <div id="evidence-locker" class="evidence-locker"></div>
+
                 <button id="scan-next" class="scan-button" style="width: 100%; height: auto; border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 20px;">
                     Scan Next
                 </button>
