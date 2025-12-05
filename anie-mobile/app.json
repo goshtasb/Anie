@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Anie",
+    "slug": "anie-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "scheme": "anie",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "bundleIdentifier": "com.axiom.anie",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Required to scan screenshots for narrative analysis."
+      }
+    },
+    "android": {
+      "package": "com.axiom.anie",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      [
+        "expo-share-intent",
+        {
+          "ios": {
+            "activationRules": {
+              "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+              "NSExtensionActivationSupportsText": true
+            }
+          },
+          "android": {
+            "intentFilters": [
+              {
+                "action": "android.intent.action.SEND",
+                "data": [
+                  { "mimeType": "text/plain" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    ]
+  }
+}
