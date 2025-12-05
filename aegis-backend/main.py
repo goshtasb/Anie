@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.15"  # Increment on each deploy to track version
+API_VERSION = "1.0.16"  # Increment on each deploy to track version
 
 @app.get("/")
 def health_check():

@@ -43,16 +43,6 @@ else:
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
     """Generate the Psyop Hunter prompt - focused on INTENT, not just facts."""
     return f"""
-**⚠️ CRITICAL PRE-CHECK - READ FIRST:**
-
-**EARNINGS/FINANCIAL REPORT DETECTION:**
-If this article is about a company's earnings, quarterly results, revenue, EPS, or financial guidance:
-→ This is PRIMARY SOURCE reporting (company's official numbers)
-→ Score reality_anchoring at 95 by DEFAULT
-→ Search results showing DIFFERENT numbers are from DIFFERENT time periods (old quarters, forecasts)
-→ "Beating estimates" or "exceeding projections" is NORMAL - that's why earnings reports exist
-→ Only flag if the company literally doesn't exist or numbers are impossible (e.g., $1 trillion daily revenue)
-
 **ROLE:**
 You are the **Aegis Counter-Intelligence Engine**.
 Your mission is NOT to "fact check" the news. Your mission is to **detect Engineered Narratives (Psyops)**.
@@ -76,33 +66,16 @@ Your mission is NOT to "fact check" the news. Your mission is to **detect Engine
   - Zombie Facts: Using 2022 data to prove a 2025 crisis
   - Twisted Context: Real stat, wrong conclusion
 - *Scoring:* 0-20 if citations are fabricated. 30-50 if facts are real but context is weaponized.
-- **EXCEPTION - Do NOT flag as fabricated:**
-  - Real-time stock prices/market data (these change constantly and are accurate at time of viewing)
-  - Stock ticker symbols with percentages (e.g., "AAPL -1.21%") - this is live data, not a claim
-  - Weather data, sports scores, or other real-time information
 
-  **CRITICAL - FINANCIAL/EARNINGS REPORTING EXCEPTION:**
-  When analyzing articles about company earnings, revenue, EPS, or financial results:
-
-  1. **THESE ARE PRIMARY SOURCE DATA** - Companies report their OWN official numbers. This is not a claim that can be "fabricated" - it's the company's official filing.
-
-  2. **BEATING/MISSING ESTIMATES IS NORMAL** - If an article says "revenue was $2.86B, beating estimates of $2.71B", this is NOT fabrication. Companies regularly beat or miss analyst estimates. The actual result being DIFFERENT from forecasts is the whole point of earnings reports.
-
-  3. **DIFFERENT QUARTERS HAVE DIFFERENT NUMBERS** - Q3 2024 data will NOT match Q2 2024 or Q3 2023. Do NOT flag current quarter data as "fabricated" because search results show different numbers from DIFFERENT time periods.
-
-  4. **SEARCH RESULTS MAY BE OUTDATED** - Your search context may contain OLD forecasts, previous quarters, or analyst estimates. The article's ACTUAL reported numbers take precedence over outdated search data.
-
-  5. **Score 90-100 for standard earnings/financial reporting** - Unless there is CLEAR evidence the article is inventing a company that doesn't exist or making up obviously false numbers (like claiming Apple had $1 trillion in quarterly revenue).
-
-  **Examples of LEGITIMATE financial reporting (score 90-100):**
-  - "Revenue increased 13% to $2.86 billion, exceeding analyst estimates"
-  - "EPS of $5.30 beat consensus of $5.10"
-  - "Company raised full-year guidance to $25.20-$25.50"
-
-  **Examples of ACTUAL fabrication (score 0-30):**
-  - Citing a company that doesn't exist
-  - Claiming results from a quarter that hasn't happened yet
-  - Inventing analyst quotes that no one made
+**SPECIAL HANDLING: FINANCIAL & EARNINGS REPORTS**
+- **The Latency Rule:** Real-time earnings data (EPS, Revenue) often appears in articles *before* it appears in search indexes. If an article cites "Q3 Earnings released today," do NOT flag the numbers as "Fabricated" just because your Search Context is 24 hours old.
+- **The "Cherry-Pick" Check:** Instead of checking if the *number* exists, check the *framing*.
+    - **Safe:** "Company X reports revenue down 5%." (Neutral reporting of data)
+    - **Danger:** "Company X is collapsing!" (when revenue is only down 0.1% - Headline Dissonance)
+- *Scoring for financial news:*
+    - **85-100:** Legitimate financial reporting with neutral framing
+    - **40-60:** Uses real financial data but with fear-mongering or sensationalist framing (Cool Psyop)
+    - **0-30:** Fabricates companies, invents quotes, or makes impossible claims
 
 **2. TRIBAL ENGINEERING (The "Us vs. Them" Check)**
 - *The Tactic:* Creating an "In-Group" of smart/awakened people vs. an "Out-Group" of sheep/sleepers.
@@ -152,8 +125,7 @@ Final Score = 15 (the minimum) -> Engineered Narrative
 
 **OUTPUT SCHEMA (JSON ONLY):**
 {{
-  "article_type": "FIRST classify as one of: [EARNINGS_REPORT, FINANCIAL_NEWS, POLITICAL, OPINION, GENERAL_NEWS, OTHER]",
-  "ani_score": INTEGER (MUST be MINIMUM of vector scores - BUT if article_type=EARNINGS_REPORT, reality_anchoring MUST be 95+),
+  "ani_score": INTEGER (MUST be MINIMUM of vector scores),
   "verdict": "One of: [Organic Reporting, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
   "summary": "Focus on the INTENT behind the narrative. What behavior is this trying to force?",
   "vectors": {{
@@ -428,32 +400,12 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                             analysis=v.get("analysis", "No analysis")
                         )
 
-                # EARNINGS REPORT OVERRIDE
-                # If AI classified as EARNINGS_REPORT but gave low reality score, override it
-                article_type = analysis.get("article_type", "OTHER")
-                if article_type == "EARNINGS_REPORT":
-                    reality_score = raw_vectors.get("reality_anchoring", {}).get("score", 50)
-                    if reality_score < 85:
-                        print(f"⚠️ EARNINGS OVERRIDE: AI gave reality={reality_score} for earnings report, overriding to 95")
-                        raw_vectors["reality_anchoring"]["score"] = 95
-                        raw_vectors["reality_anchoring"]["flags"] = []
-                        raw_vectors["reality_anchoring"]["analysis"] = "Earnings report: Primary source financial data from company filings."
-                        # Update the VectorScore we already created
-                        if "reality" in vectors:
-                            vectors["reality"] = VectorScore(
-                                score=95,
-                                flags=[],
-                                analysis="Earnings report: Primary source financial data from company filings."
-                            )
-                        # Recalculate vector_scores
-                        vector_scores = [v.score for v in vectors.values()]
-
                 # ENFORCE MINIMUM SCORE RULE
                 ai_score = analysis.get("ani_score", 50)
                 min_vector = min(vector_scores) if vector_scores else 50
                 final_score = min(ai_score, min_vector)
 
-                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, Final={final_score}, ArticleType={article_type}")
+                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, Final={final_score}")
 
                 # Determine verdict based on final score
                 if final_score <= 30:
