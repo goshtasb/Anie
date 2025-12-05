@@ -17,9 +17,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+API_VERSION = "1.0.13"  # Increment on each deploy to track version
+
 @app.get("/")
 def health_check():
-    return {"status": "Aegis Systems Online (Alpha Mode)"}
+    return {"status": "Aegis Systems Online (Alpha Mode)", "version": API_VERSION}
 
 @app.post("/v1/scan", response_model=ANIResponse)
 async def scan_endpoint(
