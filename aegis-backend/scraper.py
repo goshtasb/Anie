@@ -4,8 +4,23 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import re
 
-# User agent to avoid blocks
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+# User agent to avoid blocks - must look like a real browser
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Full browser-like headers
+REQUEST_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
+}
 
 # Timeout for fetching pages
 FETCH_TIMEOUT = 15.0
@@ -128,13 +143,9 @@ async def scrape_article(url: str) -> dict:
 
         print(f"🌐 Scraping: {url[:60]}...")
 
-        # Fetch the page
+        # Fetch the page with browser-like headers
         async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
-            response = await client.get(url, headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-            })
+            response = await client.get(url, headers=REQUEST_HEADERS)
 
             if response.status_code != 200:
                 return {
