@@ -115,20 +115,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const score = data.ani_score || 50;
     scoreValue.textContent = score;
-    verdictBadge.textContent = data.verdict || "Analysis Complete";
-    summary.textContent = data.summary || "Analysis complete.";
 
     // Color coding based on score
     let colorClass = 'verdict-red';
     if (score >= 70) colorClass = 'verdict-green';
     else if (score >= 40) colorClass = 'verdict-yellow';
 
+    // Detect the "Killer" Vector that crashed the score
+    let killerVector = null;
+    let killerVectorName = null;
+    if (score < 40 && data.vectors) {
+      let lowestScore = 100;
+      for (const [key, vec] of Object.entries(data.vectors)) {
+        if (vec && vec.score < lowestScore) {
+          lowestScore = vec.score;
+          killerVector = key;
+        }
+      }
+      if (killerVector) {
+        const vectorLabels = {
+          'reality': 'Reality Anchoring',
+          'tribal': 'Tribal Engineering',
+          'neuro': 'Intent Analysis',
+          'reality_anchoring': 'Reality Anchoring',
+          'tribal_engineering': 'Tribal Engineering',
+          'neuro_linguistic': 'Intent Analysis'
+        };
+        killerVectorName = vectorLabels[killerVector] || killerVector.replace('_', ' ');
+      }
+    }
+
+    // Update verdict with killer vector callout
+    verdictBadge.textContent = data.verdict || "Analysis Complete";
     verdictBadge.className = `verdict-badge ${colorClass}`;
     scoreValue.style.color = colorClass === 'verdict-red' ? '#ef4444' :
                             colorClass === 'verdict-yellow' ? '#eab308' : '#22c55e';
 
-    // Render Evidence Locker (Vector Breakdown)
-    evidenceLocker.innerHTML = renderEvidenceLocker(data.vectors);
+    // Build summary with critical failure callout
+    let summaryHtml = data.summary || "Analysis complete.";
+    if (killerVectorName) {
+      summaryHtml = `<span class="critical-warning">Critical Failure: ${killerVectorName}</span>${summaryHtml}`;
+    }
+    summary.innerHTML = summaryHtml;
+
+    // Render Evidence Locker (Vector Breakdown) - pass killer vector to highlight it
+    evidenceLocker.innerHTML = renderEvidenceLocker(data.vectors, killerVector);
 
     // Add click handlers for accordion
     evidenceLocker.querySelectorAll('.vector-header').forEach(header => {
@@ -142,11 +173,21 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    // Auto-expand the killer vector
+    if (killerVector) {
+      const killerItem = evidenceLocker.querySelector('.vector-item.killer');
+      if (killerItem) {
+        killerItem.classList.add('expanded');
+        const details = killerItem.querySelector('.vector-details');
+        if (details) details.style.display = 'block';
+      }
+    }
+
     showState('results');
   }
 
   // Evidence Locker renderer
-  function renderEvidenceLocker(vectors) {
+  function renderEvidenceLocker(vectors, killerVector = null) {
     if (!vectors || Object.keys(vectors).length === 0) {
       return '';
     }
@@ -175,13 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const label = vectorLabels[key] || key;
       const score = vec.score || 50;
       const isIssue = score < 70;
-      const icon = isIssue ? '⚠️' : '✓';
+      const isKiller = key === killerVector;
+      const icon = isKiller ? '💀' : (isIssue ? '⚠️' : '✓');
       const scoreClass = score < 40 ? 'low' : score < 70 ? 'mid' : 'high';
 
       html += `
-        <div class="vector-item ${isIssue ? 'issue' : 'clean'}">
+        <div class="vector-item ${isIssue ? 'issue' : 'clean'} ${isKiller ? 'killer' : ''}">
           <div class="vector-header">
-            <span class="vec-label">${icon} ${label}</span>
+            <span class="vec-label">${icon} ${label}${isKiller ? ' (VETO)' : ''}</span>
             <span class="vec-score ${scoreClass}">${score}/100</span>
           </div>
           ${isIssue ? `
