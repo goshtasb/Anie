@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.16"  # Increment on each deploy to track version
+API_VERSION = "1.0.17"  # V3.2 Temporal Verification - Freshness Rule for Financial News
 
 @app.get("/")
 def health_check():
