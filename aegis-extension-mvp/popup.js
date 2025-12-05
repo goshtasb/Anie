@@ -270,6 +270,24 @@ document.addEventListener('DOMContentLoaded', () => {
   async function applyPageHighlights(tabId, data) {
     console.log('applyPageHighlights called with:', JSON.stringify(data, null, 2));
 
+    // ALWAYS clear old highlights first before applying new ones
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: () => {
+          // Clear any existing Anie highlights from previous scans
+          const oldHighlights = document.querySelectorAll('[class*="anie-highlight"]');
+          oldHighlights.forEach(el => {
+            const text = el.textContent;
+            el.replaceWith(document.createTextNode(text));
+          });
+          console.log('Anie: Cleared ' + oldHighlights.length + ' old highlights');
+        }
+      });
+    } catch (e) {
+      console.log('Could not clear old highlights:', e.message);
+    }
+
     if (!data.vectors) {
       console.log('No vectors in data, skipping highlights');
       return;

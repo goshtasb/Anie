@@ -24,9 +24,17 @@
             <h1>The truth has structure.</h1>
             <p class="subtitle">Anie analyzes the news you read for emotional coercion, logical fallacies, and engineered narratives.</p>
 
+            <div class="web-scanner">
+                <div class="input-group">
+                    <input type="text" id="urlInput" placeholder="Paste article URL here..." />
+                    <button id="scanBtn" class="btn-scan">SCAN</button>
+                </div>
+                <div id="scanResult" class="scan-result" style="display: none;"></div>
+            </div>
+
             <div class="cta-wrapper">
-                <a href="https://chrome.google.com/webstore/" class="btn-primary">Install Alpha v1.0</a>
-                <span class="version-tag">Chromium Compatible</span>
+                <a href="https://chrome.google.com/webstore/" class="btn-primary">Install Chrome Extension</a>
+                <span class="version-tag">Works on mobile too</span>
             </div>
         </div>
 
@@ -64,6 +72,93 @@
             </div>
         </div>
     </footer>
+
+    <script>
+        const API_URL = 'https://aegis-alpha.onrender.com/v1/scan';
+        const scanBtn = document.getElementById('scanBtn');
+        const urlInput = document.getElementById('urlInput');
+        const resultDiv = document.getElementById('scanResult');
+
+        // Scanning messages for animation
+        const loadingMessages = [
+            'Accessing Axiom Neural Core...',
+            'Extracting article content...',
+            'Cross-referencing claims...',
+            'Analyzing narrative structure...',
+            'Detecting manipulation vectors...'
+        ];
+
+        scanBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<div class="res-error">Please paste an article URL</div>';
+                return;
+            }
+
+            if (!url.startsWith('http')) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<div class="res-error">Please enter a valid URL starting with http:// or https://</div>';
+                return;
+            }
+
+            // Show loading state
+            resultDiv.style.display = 'block';
+            scanBtn.disabled = true;
+            scanBtn.textContent = 'SCANNING...';
+
+            let msgIndex = 0;
+            resultDiv.innerHTML = `<div class="loader">${loadingMessages[0]}</div>`;
+
+            const loadingInterval = setInterval(() => {
+                msgIndex = (msgIndex + 1) % loadingMessages.length;
+                const loader = resultDiv.querySelector('.loader');
+                if (loader) loader.textContent = loadingMessages[msgIndex];
+            }, 1500);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: url, text: '' })
+                });
+
+                clearInterval(loadingInterval);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Analysis failed');
+                }
+
+                const data = await response.json();
+
+                // Determine color class
+                const score = data.ani_score || 50;
+                let colorClass = 'critical';
+                if (score >= 70) colorClass = 'safe';
+                else if (score >= 40) colorClass = 'warning';
+
+                resultDiv.innerHTML = `
+                    <div class="res-score ${colorClass}">${score}/100</div>
+                    <div class="res-verdict">${data.verdict || 'Analysis Complete'}</div>
+                    <p class="res-summary">${data.summary || ''}</p>
+                `;
+
+            } catch (e) {
+                clearInterval(loadingInterval);
+                resultDiv.innerHTML = `<div class="res-error">${e.message}</div>`;
+            } finally {
+                scanBtn.disabled = false;
+                scanBtn.textContent = 'SCAN';
+            }
+        });
+
+        // Allow Enter key to trigger scan
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') scanBtn.click();
+        });
+    </script>
 
 </body>
 </html>

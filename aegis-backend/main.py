@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from schemas import ScanRequest, ANIResponse
 from engine import analyze_text
 import services
+from scraper import scrape_article
 import uvicorn
 
 app = FastAPI(title="Aegis Core (Free Alpha)")
@@ -17,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.21"  # V3.5 Cache debugging + force-clear endpoint
+API_VERSION = "1.0.22"  # V3.6 Server-side scraping for mobile/web
 
 @app.get("/")
 def health_check():
@@ -64,10 +65,29 @@ async def scan_endpoint(
     else:
         print("👤 Anonymous Scan")
 
-    # 3. RUN GROK (The Cost)
-    result = await analyze_text(payload.text)
+    # 3. GET TEXT (from payload or by scraping)
+    text_to_analyze = payload.text
+    title = payload.title
 
-    # 4. SAVE TO CACHE (Canonical URL)
+    # If no text provided (mobile/web users), scrape it from URL
+    if not text_to_analyze or len(text_to_analyze) < 100:
+        print("📱 URL-only request detected, initiating server-side scrape...")
+        scrape_result = await scrape_article(payload.url)
+
+        if not scrape_result["success"]:
+            raise HTTPException(
+                status_code=422,
+                detail=scrape_result.get("error", "Could not extract article content")
+            )
+
+        text_to_analyze = scrape_result["text"]
+        title = scrape_result.get("title", title)
+        print(f"✅ Scraped {len(text_to_analyze)} chars, title: {title[:50]}...")
+
+    # 4. RUN GROK (The Cost)
+    result = await analyze_text(text_to_analyze, title=title)
+
+    # 5. SAVE TO CACHE (Canonical URL)
     # Save using the stable canonical URL as key
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
 
