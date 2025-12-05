@@ -317,33 +317,118 @@ document.addEventListener('DOMContentLoaded', () => {
         files: ['highlights.css']
       });
 
-      // 2. Inject the highlighter script
+      // 2. Inject highlighter function directly with evidence data
       await chrome.scripting.executeScript({
         target: { tabId: tabId },
-        files: ['highlighter.js']
+        args: [evidence],
+        func: (evidenceData) => {
+          // Inline highlighter function
+          function cleanPhrase(text) {
+            if (!text) return '';
+            return text
+              .replace(/^["'""'']+|["'""'']+$/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+
+          function findTextMatches(phrase) {
+            const matches = [];
+            const lowerPhrase = phrase.toLowerCase();
+
+            const walker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT,
+              {
+                acceptNode: function(node) {
+                  const parent = node.parentElement;
+                  if (!parent) return NodeFilter.FILTER_REJECT;
+                  const tagName = parent.tagName.toLowerCase();
+                  if (['script', 'style', 'noscript', 'textarea', 'input'].includes(tagName)) {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  if (parent.className && typeof parent.className === 'string' && parent.className.includes('anie-highlight')) {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+              }
+            );
+
+            let node;
+            while (node = walker.nextNode()) {
+              const text = node.nodeValue;
+              const lowerText = text.toLowerCase();
+
+              let index = lowerText.indexOf(lowerPhrase);
+              if (index !== -1) {
+                matches.push({ node, startIndex: index, endIndex: index + phrase.length });
+                continue;
+              }
+
+              if (phrase.length > 30) {
+                const fuzzyPhrase = lowerPhrase.substring(0, 30);
+                index = lowerText.indexOf(fuzzyPhrase);
+                if (index !== -1) {
+                  let endIndex = Math.min(index + phrase.length, text.length);
+                  matches.push({ node, startIndex: index, endIndex });
+                }
+              }
+            }
+            return matches;
+          }
+
+          function wrapTextNode(textNode, startIndex, endIndex, severity, reason) {
+            const text = textNode.nodeValue;
+            const parent = textNode.parentNode;
+
+            if (!parent || parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE') return;
+            if (parent.className && typeof parent.className === 'string' && parent.className.includes('anie-highlight')) return;
+
+            const fragment = document.createDocumentFragment();
+
+            if (startIndex > 0) {
+              fragment.appendChild(document.createTextNode(text.substring(0, startIndex)));
+            }
+
+            const span = document.createElement('span');
+            const highlightClass = severity === 'critical' ? 'anie-highlight-critical' :
+                                  severity === 'killer' ? 'anie-highlight-critical anie-highlight-killer' :
+                                  'anie-highlight-warning';
+            span.className = highlightClass;
+            span.setAttribute('data-anie-reason', reason || 'Flagged by Anie');
+            span.textContent = text.substring(startIndex, endIndex);
+            fragment.appendChild(span);
+
+            if (endIndex < text.length) {
+              fragment.appendChild(document.createTextNode(text.substring(endIndex)));
+            }
+
+            parent.replaceChild(fragment, textNode);
+          }
+
+          // Process evidence
+          let highlightCount = 0;
+          evidenceData.forEach(item => {
+            const phrase = cleanPhrase(item.text);
+            if (!phrase || phrase.length < 10) return;
+
+            const matches = findTextMatches(phrase);
+            matches.forEach(match => {
+              try {
+                wrapTextNode(match.node, match.startIndex, match.endIndex, item.severity, item.reason);
+                highlightCount++;
+              } catch (e) {
+                console.log('Anie highlight skip:', e.message);
+              }
+            });
+          });
+
+          console.log('Anie: Applied ' + highlightCount + ' highlights');
+          return { count: highlightCount };
+        }
       });
 
-      // 3. Wait for script to initialize its listener
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      // 4. Send the evidence to highlight (with retry)
-      const sendWithRetry = (attempt = 1) => {
-        chrome.tabs.sendMessage(tabId, {
-          action: "HIGHLIGHT_EVIDENCE",
-          evidence: evidence
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.log('Highlight message error (attempt ' + attempt + '):', chrome.runtime.lastError.message);
-            // Retry up to 3 times with increasing delay
-            if (attempt < 3) {
-              setTimeout(() => sendWithRetry(attempt + 1), 200 * attempt);
-            }
-            return;
-          }
-          console.log('Highlights applied:', response);
-        });
-      };
-      sendWithRetry();
+      console.log('Highlights injection complete');
 
     } catch (error) {
       console.log('Failed to apply highlights:', error.message);
