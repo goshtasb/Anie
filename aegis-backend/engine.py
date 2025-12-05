@@ -71,6 +71,13 @@ Your mission is NOT to "fact check" the news. Your mission is to **detect Engine
   - Stock ticker symbols with percentages (e.g., "AAPL -1.21%") - this is live data, not a claim
   - Weather data, sports scores, or other real-time information
   - These are UI elements, not journalistic claims to fact-check
+  - **EARNINGS REPORTS:** When an article reports a company's quarterly earnings, revenue, EPS, or guidance:
+    - These are OFFICIAL PRIMARY SOURCE data from the company itself
+    - Do NOT compare current quarter data against different past quarters
+    - A company saying "Q3 revenue was $2.86B" is reporting their own official numbers
+    - Just because search results show different numbers from DIFFERENT quarters doesn't mean current data is fabricated
+    - Earnings reports are time-sensitive - Q3 2024 data won't match Q2 2024 or Q3 2023
+    - Score 85-100 for standard earnings/financial reporting unless there's CLEAR evidence of fabrication
 
 **2. TRIBAL ENGINEERING (The "Us vs. Them" Check)**
 - *The Tactic:* Creating an "In-Group" of smart/awakened people vs. an "Out-Group" of sheep/sleepers.
