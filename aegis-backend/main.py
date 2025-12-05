@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.19"  # V3.3 + 24h Cache TTL (stories evolve)
+API_VERSION = "1.0.20"  # V3.4 Financial content detection in user message
 
 @app.get("/")
 def health_check():

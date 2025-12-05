@@ -1,4 +1,4 @@
-# engine.py - Aegis A.N.I. Engine V3.3 "Psyop Hunter" (Mandatory Freshness Override)
+# engine.py - Aegis A.N.I. Engine V3.4 "Psyop Hunter" (Financial Content Detection)
 import os
 import json
 import asyncio
@@ -319,12 +319,38 @@ async def search_for_truth_context(extracted: dict) -> dict:
         return {"results": [], "sources": []}
 
 
+def detect_financial_content(text: str, title: str) -> bool:
+    """Detect if article is financial/earnings news."""
+    combined = f"{title or ''} {text}".lower()
+    financial_keywords = [
+        "earnings", "quarterly", "revenue", "eps", "fiscal year",
+        "q1", "q2", "q3", "q4", "beat estimates", "exceeded expectations",
+        "reported today", "profit", "guidance", "forecast", "same-store sales"
+    ]
+    return any(kw in combined for kw in financial_keywords)
+
+
 async def psyop_analysis(text: str, title: str, search_results: dict, current_date: str) -> dict:
     """Apply Psyop Hunter analysis - looking for INTENT, not just errors."""
     try:
         search_context = "\n".join(search_results.get("results", ["No search results available"]))
 
+        # Detect financial content and add explicit reminder
+        is_financial = detect_financial_content(text, title)
+        financial_reminder = ""
+        if is_financial:
+            financial_reminder = """
+**⚠️ FINANCIAL/EARNINGS ARTICLE DETECTED ⚠️**
+This appears to be a financial news article. Remember:
+- DO NOT flag revenue/earnings numbers as "fabricated" just because search results differ
+- Search indices are STALE for breaking financial news
+- Score reality_anchoring 85-95 unless FRAMING is manipulative
+- Focus on: Is there a manipulative call to action? Not: Do the numbers match old data?
+"""
+            print("📊 Financial content detected - applying Freshness Rule")
+
         prompt = f"""
+{financial_reminder}
 **ARTICLE TITLE:** {title or "Untitled"}
 
 **ARTICLE TEXT:**
@@ -332,6 +358,7 @@ async def psyop_analysis(text: str, title: str, search_results: dict, current_da
 
 Analyze this article using the Psyop Hunter protocol. Focus on INTENT - what behavior is this trying to force?
 Remember: A psyop can use TRUE facts to create a FALSE reality.
+{"REMINDER: This is FINANCIAL NEWS - apply the Freshness Rule for reality_anchoring." if is_financial else ""}
 """
 
         completion = await client.chat.completions.create(
