@@ -66,30 +66,12 @@ def clean_text(text: str) -> str:
 
 def extract_article_content(soup: BeautifulSoup) -> str:
     """Extract main article content from parsed HTML."""
-    # Remove noise elements
-    for tag in NOISE_TAGS:
-        for element in soup.find_all(tag):
-            element.decompose()
-
-    # Remove elements with noisy classes
-    for class_name in NOISE_CLASSES:
-        for element in soup.find_all(class_=re.compile(class_name, re.I)):
-            element.decompose()
-
-    # Remove elements with noisy IDs
-    for id_name in NOISE_IDS:
-        for element in soup.find_all(id=re.compile(id_name, re.I)):
-            element.decompose()
-
-    # Remove aria-hidden elements
-    for element in soup.find_all(attrs={'aria-hidden': 'true'}):
-        element.decompose()
-
-    # Try to find the main article content
+    # FIRST: Find the main article container BEFORE removing anything
+    # This prevents noise removal from accidentally destroying the article
     article = (
         soup.find('article') or
         soup.find(attrs={'itemprop': 'articleBody'}) or
-        soup.find(class_=re.compile(r'article|story|post|content', re.I)) or
+        soup.find(class_=re.compile(r'^(article|story|post)-?(body|content)?$', re.I)) or
         soup.find('main') or
         soup.body
     )
@@ -97,12 +79,39 @@ def extract_article_content(soup: BeautifulSoup) -> str:
     if not article:
         return ""
 
+    # Make a copy to work with so we don't destroy the original
+    from copy import copy
+    article_copy = copy(article)
+
+    # NOW remove noise elements from within the article
+    for tag in NOISE_TAGS:
+        for element in article_copy.find_all(tag):
+            element.decompose()
+
+    # Remove elements with noisy classes (use word boundaries to avoid false positives)
+    # e.g., "ad-container" should match, but "content-article" should NOT match "ad"
+    for class_name in NOISE_CLASSES:
+        # Match class names that ARE the noise word or have it with separators
+        pattern = re.compile(rf'(^|[-_]){class_name}([-_]|$)', re.I)
+        for element in article_copy.find_all(class_=pattern):
+            element.decompose()
+
+    # Remove elements with noisy IDs
+    for id_name in NOISE_IDS:
+        pattern = re.compile(rf'(^|[-_]){id_name}([-_]|$)', re.I)
+        for element in article_copy.find_all(id=pattern):
+            element.decompose()
+
+    # Remove aria-hidden elements
+    for element in article_copy.find_all(attrs={'aria-hidden': 'true'}):
+        element.decompose()
+
     # Extract text from paragraphs for cleaner content
-    paragraphs = article.find_all('p')
+    paragraphs = article_copy.find_all('p')
     if paragraphs:
         text = ' '.join(p.get_text() for p in paragraphs)
     else:
-        text = article.get_text()
+        text = article_copy.get_text()
 
     return clean_text(text)
 
