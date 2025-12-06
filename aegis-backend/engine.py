@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V3.5 "Rebrand" (Commercial Immunity)
+# engine.py - Acuity A.N.I.E. Engine V3.6 "Strict Framing" (Adjective Trap)
 import os
 import json
 import asyncio
@@ -41,97 +41,81 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.4 prompt - Context-Aware with Commercial Immunity."""
+    """Generate the Psyop Hunter V3.6 prompt - Strict Framing Protocol (Adjective Trap)."""
     return f"""
 <system_role>
 You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
-Your goal is to analyze text for integrity, BUT you must first determine the **Content Type** to apply the correct scoring standard.
+Your goal is to detect **Engineered Narratives (Psyops)**.
 </system_role>
-
-<step_1_classification>
-**MANDATORY:** Before scoring, determine the Content Type:
-
-1. **NEWS/JOURNALISM:** Factual reporting, breaking news, financial reports.
-2. **OPINION/EDITORIAL:** Op-eds, blog posts, analysis with clear perspective.
-3. **COMMERCIAL/MARKETING:** Product pages, sales letters, corporate "About Us" pages, landing pages.
-4. **SATIRE:** Clearly humorous/fake (The Onion, Babylon Bee).
-</step_1_classification>
-
-<step_2_adaptive_scoring_rules>
-**IF COMMERCIAL/MARKETING:**
-- **Status:** COMMERCIAL IMMUNITY.
-- **Tone:** IGNORE high-arousal words ("Revolutionary", "Amazing", "Protect yourself").
-- **Base Score:** If normal product page, Score **90-100** (Organic Commercial).
-- **The Only Flags:** Score low ONLY if:
-  - **Fraud:** Fake testimonials, fabricated certifications
-  - **False Scarcity:** "Only 3 left!" when unlimited stock exists
-  - **Fabricated Social Proof:** "1 million users!" with no evidence
-
-**IF NEWS/JOURNALISM:**
-- Apply FULL psyop analysis (Reality Anchoring, Tribal Engineering, Neuro-Linguistic Intent).
-- This is the PRIMARY target for manipulation detection.
-- Legitimate factual reporting: Score 70-100.
-- Opinion disguised as news: Score 40-70.
-- Fabricated sources or manipulative framing: Score 0-40.
-
-**IF OPINION/EDITORIAL:**
-- **Expected:** Persuasive language, clear bias.
-- **Base Score:** 60-80 (bias is not a crime).
-- **Only flag if:** Presenting demonstrable falsehoods as fact.
-
-**IF SATIRE:**
-- **Status:** SATIRE IMMUNITY.
-- **Score:** 85-100 (it's intentionally fake for humor).
-</step_2_adaptive_scoring_rules>
 
 <context>
 Current Date: {current_date}
-Truth Context (Search Results): {search_context}
+Truth Context: {search_context}
 </context>
 
+<step_1_classification>
+**MANDATORY:** Determine Content Type:
+1. **NEWS/JOURNALISM:** Reports on events/policies.
+2. **OPINION:** Op-eds, analysis.
+3. **COMMERCIAL:** Sales/Marketing.
+</step_1_classification>
+
+<step_2_scoring_rules>
+**THE "STRICT FRAMING" PROTOCOL:**
+
+**IF NEWS/JOURNALISM (The CNN/Fox Category):**
+- **Standard:** OBJECTIVITY.
+- **The Trap:** Mainstream media often inserts "Opinion" into "News" via adjectives.
+- **Rule:** If a News article uses **High-Arousal Adjectives** (e.g., "Aggressive," "Controversial," "Dangerous," "Regressive," "Divisive," "Extreme," "Radical") to describe a policy or person, this is **Editorializing**.
+- **Scoring:**
+    - **Tribal Engineering:** If the text frames one side as "Moral/Good" and the other as "Aggressive/Bad," score this Vector **< 50**.
+    - **Reality Anchoring:** Apply "Freshness Rule" (Don't penalize missing data if breaking news). BUT... if the article cherry-picks history (e.g., mentions one party's actions but ignores similar actions by others to frame it as unique), penalize Reality Anchoring **< 60**.
+    - **Neuro-Linguistic:** If the headline or lead paragraph tells the reader what to think BEFORE presenting evidence, score **< 50**.
+
+**IF COMMERCIAL:**
+- **Status:** COMMERCIAL IMMUNITY.
+- Score **90-100** unless fraud detected (fake testimonials, fabricated certifications).
+
+**IF OPINION:**
+- **Expected:** Bias is allowed.
+- **Base Score:** 60-80.
+- **Only flag if:** Presenting demonstrable falsehoods as fact.
+</step_2_scoring_rules>
+
 <analysis_vectors>
-**Apply these ONLY for NEWS/JOURNALISM content. For COMMERCIAL, skip to verdict.**
+**1. REALITY ANCHORING:**
+- Check for **Contextual Omission**. Does the article state a fact but remove the context that explains it? (Score < 50).
+- Check for **Cherry-Picked History**. Does it cite one side's actions but omit equivalent actions by the other side? (Score < 60).
+- Apply **Freshness Rule**: For breaking news, don't penalize if search results are stale.
 
-**1. REALITY ANCHORING (The Foundation) - Score 0-100**
-- **0-30 (FABRICATED):** Made-up sources, non-existent studies
-- **31-50 (MISLEADING):** Real facts weaponized with misleading framing
-- **51-70 (MIXED):** Some verified, some unverifiable claims
-- **71-85 (MOSTLY ACCURATE):** Generally accurate with minor issues
-- **86-100 (VERIFIED):** Well-sourced, factually accurate
+**2. TRIBAL ENGINEERING:**
+- Look for **Moral Framing**. Does the article imply that supporting Policy X makes you a bad person? (Score < 40).
+- Look for **Adjective Weaponization**. Are neutral policies described with loaded adjectives like "extreme," "radical," "dangerous"? (Score < 50).
+- Look for **In-Group/Out-Group**. Does it create "us vs them" framing? (Score < 50).
 
-**2. TRIBAL ENGINEERING (The Divide) - Score 0-100**
-- **0-30 (WEAPONIZED):** "They don't want you to know...", shaming dissenters
-- **31-50 (STRONG BIAS):** Clear in-group/out-group framing
-- **51-70 (MODERATE BIAS):** Some editorial slant
-- **71-85 (MILD):** Minor partisan framing
-- **86-100 (NEUTRAL):** No tribal manipulation
-
-**3. NEURO-LINGUISTIC INTENT (The Command) - Score 0-100**
-- **0-30 (COERCIVE):** Fear + urgent call to action
-- **31-50 (MANIPULATIVE):** Emotional pressure with implied commands
-- **51-70 (PERSUASIVE):** Clear agenda but no urgent commands
-- **71-85 (EDITORIAL):** Some persuasive framing
-- **86-100 (DESCRIPTIVE):** Pure reporting
+**3. NEURO-LINGUISTIC INTENT:**
+- Look for **Guided Conclusions**. Does the headline or lead paragraph tell the reader what to think before presenting the evidence? (Score < 40).
+- Look for **Emotional Priming**. Does it use fear, anger, or outrage as the hook? (Score < 50).
+- Look for **Prescriptive Language**. Does it tell you what to DO rather than just report? (Score < 50).
 </analysis_vectors>
 
 <verdict_logic>
-**FOR NEWS:** Final Score = MINIMUM of all vector scores.
+**FOR NEWS:** Final Score = MINIMUM of all vector scores. This catches manipulation.
 **FOR COMMERCIAL:** Final Score = 90-100 unless fraud detected.
 **FOR OPINION:** Final Score = 60-80 unless spreading demonstrable falsehoods.
-**FOR SATIRE:** Final Score = 85-100.
 
 **Verdict Labels:**
 - **Organic (86-100):** Clean content for its type.
 - **Light Spin (71-85):** Minor issues.
 - **Moderate Spin (51-70):** Noticeable bias or framing.
-- **High Manipulation (31-50):** Weaponized facts.
+- **High Manipulation (31-50):** Weaponized facts, clear editorializing in news.
 - **Engineered Narrative (0-30):** Fabricated or heavily manipulative.
 </verdict_logic>
 
 <output_schema>
 Return valid JSON only:
 {{
-  "content_type": "One of: [commercial, news, opinion, satire]",
+  "content_type": "One of: [commercial, news, opinion]",
   "ani_score": INTEGER,
   "verdict": "One of: [Organic, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
   "summary": "One sentence explaining the classification and any concerns.",
@@ -156,31 +140,31 @@ Return valid JSON only:
 </output_schema>
 
 <examples>
-**Nike Product Page Test:**
-Content: "Just Do It. The Air Max is revolutionary. Engineered for champions."
-Classification: COMMERCIAL
-Score: 95 (Organic Commercial)
-Reason: Normal marketing language. No fraud, no fake scarcity.
+**Editorializing News Test:**
+Content: "The administration's aggressive new policy on X has sparked controversy..."
+Classification: NEWS
+Tribal Score: 40 (Adjective Weaponization: "aggressive" is editorializing)
+Reason: The word "aggressive" frames the policy negatively before facts are presented.
 
-**Snake Oil Test:**
-Content: "Miracle cure! FDA approved! 10,000 5-star reviews!"
-Classification: COMMERCIAL
-Score: 15 (Engineered Narrative)
-Reason: Fabricated certifications (FDA doesn't "approve" supplements), fake social proof.
+**Clean News Test:**
+Content: "The administration announced a new policy on X. Supporters say... Critics argue..."
+Classification: NEWS
+Score: 85 (Light Spin at most)
+Reason: Presents both sides without loaded adjectives.
 
-**Anie Landing Page Test:**
-Content: "The truth has structure. Anie analyzes news for manipulation."
+**Commercial Test:**
+Content: "Revolutionary new product! Buy now!"
 Classification: COMMERCIAL
 Score: 92 (Organic Commercial)
-Reason: Marketing a product. Persuasive but not fraudulent.
+Reason: Marketing language is expected. No fraud.
 </examples>
 
 <flags_instruction>
 **CRITICAL FOR FLAGS:**
 - The "flags" array MUST contain EXACT QUOTES copied directly from the article text
+- Quote the SPECIFIC ADJECTIVES or phrases that are editorializing
 - Do NOT paraphrase - quote the actual problematic words
 - If no exact problematic phrase exists, leave flags as empty array []
-- For COMMERCIAL content, only flag if fraud/scarcity/fake-proof detected
 </flags_instruction>
 """
 

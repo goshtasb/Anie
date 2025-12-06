@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.37"  # Nuclear URL Sanitizer: Unified cache keys across all platforms
+API_VERSION = "1.0.38"  # V3.6 Strict Framing: Adjective Trap punishes editorializing in news
 
 @app.get("/")
 def health_check():
