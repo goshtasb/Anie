@@ -215,6 +215,59 @@ h1 {
 .warning { color: #ffbb33; }
 .safe { color: #00C851; }
 
+/* FORENSIC BREAKDOWN - Vector Cards */
+.vector-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.vector-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.vec-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.vec-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.vec-score {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.vec-analysis {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.vec-evidence {
+    font-size: 0.8rem;
+    color: #888;
+    font-style: italic;
+    border-left: 2px solid rgba(255,255,255,0.1);
+    padding-left: 10px;
+    margin-top: 6px;
+}
+
 /* THE "MASLO" BLOB ANIMATION */
 .visual-right {
     display: flex;

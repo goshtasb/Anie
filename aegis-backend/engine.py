@@ -1,4 +1,4 @@
-# engine.py - Aegis A.N.I. Engine V3.4 "Context-Aware" (Commercial Immunity)
+# engine.py - Acuity A.N.I.E. Engine V3.5 "Rebrand" (Commercial Immunity)
 import os
 import json
 import asyncio
@@ -44,7 +44,7 @@ def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
     """Generate the Psyop Hunter V3.4 prompt - Context-Aware with Commercial Immunity."""
     return f"""
 <system_role>
-You are the Axiom Counter-Intelligence Engine.
+You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
 Your goal is to analyze text for integrity, BUT you must first determine the **Content Type** to apply the correct scoring standard.
 </system_role>
 

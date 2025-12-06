@@ -7,7 +7,7 @@ import services
 from scraper import scrape_article
 import uvicorn
 
-app = FastAPI(title="Aegis Core (Free Alpha)")
+app = FastAPI(title="Acuity Core (Free Alpha)")
 
 # CORS: Allow all origins for the Alpha launch
 app.add_middleware(
@@ -18,11 +18,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.35"  # Math Integrity: Consistency Boost prevents 100+100+100=95
+API_VERSION = "1.0.36"  # Acuity Rebrand: The System is ACUITY, the Interface is A.N.I.E.
 
 @app.get("/")
 def health_check():
-    return {"status": "Aegis Systems Online (Alpha Mode)", "version": API_VERSION}
+    return {"status": "Acuity Systems Online (Alpha Mode)", "version": API_VERSION}
 
 
 @app.delete("/v1/cache/clear")

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANIE | Narrative Integrity Engine</title>
+    <title>ACUITY | Narrative Integrity Engine</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
@@ -12,17 +12,17 @@
 <body>
 
     <nav>
-        <div class="logo">ANIE</div>
+        <div class="logo">ACUITY</div>
         <div class="nav-links">
             <a href="#how-it-works">Manifesto</a>
-            <a href="https://chrome.google.com/webstore/" class="btn-nav">Add to Chrome</a>
+            <a href="https://chrome.google.com/webstore/" class="btn-nav">Get Extension</a>
         </div>
     </nav>
 
     <main class="hero">
         <div class="content-left">
-            <h1>The truth has structure.</h1>
-            <p class="subtitle">Anie analyzes the news you read for emotional coercion, logical fallacies, and engineered narratives.</p>
+            <h1>Sharpness of Thought.<br>Clarity of Vision.</h1>
+            <p class="subtitle">Acuity detects engineered narratives and reality distortion in real-time. See what others miss.</p>
 
             <div class="web-scanner">
                 <div class="input-group">
@@ -64,7 +64,7 @@
 
     <footer>
         <div class="footer-content">
-            <span>&copy; 2025 Axiom Narrative Integrity Engine</span>
+            <span>&copy; 2025 Acuity Narrative Integrity Engine</span>
             <div class="legal">
                 <a href="privacy.html">Privacy</a>
                 <a href="#">Terms</a>
@@ -139,10 +139,46 @@
                 if (score >= 70) colorClass = 'safe';
                 else if (score >= 40) colorClass = 'warning';
 
+                // Helper function to get color class for individual vector scores
+                const getVecColor = (s) => s >= 70 ? 'safe' : s >= 40 ? 'warning' : 'critical';
+
+                // Vector display names
+                const vectorNames = {
+                    'reality': 'Reality Anchoring',
+                    'tribal': 'Tribal Engineering',
+                    'neuro': 'Neuro-Linguistic'
+                };
+
+                // Build vector cards HTML
+                let vectorsHTML = '';
+                if (data.vectors && typeof data.vectors === 'object') {
+                    const vectorKeys = Object.keys(data.vectors);
+                    if (vectorKeys.length > 0) {
+                        vectorsHTML = '<div class="vector-container">';
+                        vectorKeys.forEach(key => {
+                            const v = data.vectors[key];
+                            const displayName = vectorNames[key] || key;
+                            const evidence = v.flags && v.flags.length > 0 ? v.flags[0] : null;
+                            vectorsHTML += `
+                                <div class="vector-card">
+                                    <div class="vec-header">
+                                        <span class="vec-name">${displayName}</span>
+                                        <span class="vec-score ${getVecColor(v.score)}">${v.score}/100</span>
+                                    </div>
+                                    <p class="vec-analysis">${v.analysis || ''}</p>
+                                    ${evidence ? `<p class="vec-evidence">"${evidence}"</p>` : ''}
+                                </div>
+                            `;
+                        });
+                        vectorsHTML += '</div>';
+                    }
+                }
+
                 resultDiv.innerHTML = `
                     <div class="res-score ${colorClass}">${score}/100</div>
                     <div class="res-verdict">${data.verdict || 'Analysis Complete'}</div>
                     <p class="res-summary">${data.summary || ''}</p>
+                    ${vectorsHTML}
                 `;
 
             } catch (e) {
