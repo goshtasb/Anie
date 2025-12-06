@@ -3,6 +3,7 @@ import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import re
+import json
 
 # User agent to avoid blocks - must look like a real browser
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -62,6 +63,57 @@ def clean_text(text: str) -> str:
     # Remove leading/trailing whitespace
     text = text.strip()
     return text
+
+
+def extract_from_json_ld(soup: BeautifulSoup) -> tuple[str, str]:
+    """
+    Extract article content from JSON-LD structured data.
+    Many modern sites (CNN, BBC, etc.) embed full article text in JSON-LD for SEO.
+    Returns: (text, title) or (None, None) if not found
+    """
+    try:
+        # Find all JSON-LD script tags
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = json.loads(script.string)
+
+                # Handle arrays of objects
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict) and item.get('articleBody'):
+                            text = item.get('articleBody', '')
+                            title = item.get('headline', '')
+                            if text and len(text) > 200:
+                                print(f"📦 JSON-LD extraction: {len(text)} chars")
+                                return clean_text(text), title
+
+                # Handle single object
+                elif isinstance(data, dict):
+                    # Direct articleBody
+                    if data.get('articleBody'):
+                        text = data.get('articleBody', '')
+                        title = data.get('headline', '')
+                        if text and len(text) > 200:
+                            print(f"📦 JSON-LD extraction: {len(text)} chars")
+                            return clean_text(text), title
+
+                    # Check @graph array (common pattern)
+                    if data.get('@graph'):
+                        for item in data['@graph']:
+                            if isinstance(item, dict) and item.get('articleBody'):
+                                text = item.get('articleBody', '')
+                                title = item.get('headline', '')
+                                if text and len(text) > 200:
+                                    print(f"📦 JSON-LD @graph extraction: {len(text)} chars")
+                                    return clean_text(text), title
+
+            except json.JSONDecodeError:
+                continue
+
+    except Exception as e:
+        print(f"⚠️ JSON-LD extraction error: {e}")
+
+    return None, None
 
 
 def extract_article_content(soup: BeautifulSoup) -> str:
@@ -222,8 +274,13 @@ async def scrape_article(url: str) -> dict:
         # Parse HTML
         soup = BeautifulSoup(html, 'lxml')
 
-        # Extract content
-        text = extract_article_content(soup)
+        # FIRST: Try JSON-LD extraction (works for JS-heavy sites like CNN)
+        text, json_title = extract_from_json_ld(soup)
+
+        # FALLBACK: Try HTML paragraph extraction
+        if not text or len(text) < 200:
+            text = extract_article_content(soup)
+            json_title = None
 
         if not text or len(text) < 200:
             return {
@@ -231,8 +288,8 @@ async def scrape_article(url: str) -> dict:
                 "error": "Could not extract article content (too short or not an article)"
             }
 
-        # Extract title
-        title = extract_title(soup)
+        # Extract title (prefer JSON-LD title if available)
+        title = json_title if json_title else extract_title(soup)
 
         print(f"✅ Scraped: {len(text)} chars from {domain} (via {source})")
 

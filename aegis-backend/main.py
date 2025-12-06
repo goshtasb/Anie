@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.26"  # V3.5 Balanced scoring - removed 85 override
+API_VERSION = "1.0.27"  # JSON-LD extraction for JS-heavy sites (CNN, etc)
 
 @app.get("/")
 def health_check():
