@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.39"  # V3.7 Chain of Thought: Scratchpad Protocol forces explicit reasoning
+API_VERSION = "1.0.40"  # V3.8 Iron Fist: Weakest Link Rule - Final Score <= Lowest Vector + 5
 
 @app.get("/")
 def health_check():
