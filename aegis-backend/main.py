@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.30"  # Archive-first for cloud-blocked domains (CNN, BBC, etc.)
+API_VERSION = "1.0.31"  # Jina.ai integration - JavaScript rendering for JS-heavy sites
 
 @app.get("/")
 def health_check():

@@ -5,6 +5,19 @@ from urllib.parse import urlparse
 import re
 import json
 
+# =============================================================================
+# JINA.AI INTEGRATION - The Smart Bridge
+# =============================================================================
+# Jina (r.jina.ai) is a specialized API that:
+# 1. Uses a Headless Browser (executes JavaScript)
+# 2. Cleans the content (strips ads, nav, popups)
+# 3. Handles bot detection (proper browser fingerprinting)
+# 4. Returns clean markdown text
+# =============================================================================
+
+JINA_BASE_URL = "https://r.jina.ai/"
+JINA_TIMEOUT = 20.0  # Jina can be slow on JS-heavy pages
+
 # User agent to avoid blocks - must look like a real browser
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -109,6 +122,94 @@ def is_garbled_text(text: str) -> bool:
         return True
 
     return False
+
+
+async def scrape_via_jina(url: str) -> dict:
+    """
+    Scrape article using Jina.ai's reader API.
+    Jina handles JavaScript rendering and content cleaning automatically.
+
+    Returns: {
+        "success": bool,
+        "text": str,
+        "title": str,
+        "source": "jina",
+        "error": str (if failed)
+    }
+    """
+    jina_url = f"{JINA_BASE_URL}{url}"
+    print(f"🤖 Scraping via Jina Bridge: {url[:50]}...")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Compatible; AnieBot/1.0)",
+        "X-Retain-Images": "none",  # We don't need images
+        "Accept": "text/plain",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=JINA_TIMEOUT) as client:
+            response = await client.get(jina_url, headers=headers)
+
+            if response.status_code == 200:
+                text = response.text
+
+                # Check if Jina returned an error as JSON
+                if text.startswith('{"'):
+                    try:
+                        data = json.loads(text)
+                        if data.get("code") or data.get("error"):
+                            error_msg = data.get("message", data.get("error", "Unknown Jina error"))
+                            print(f"⚠️ Jina API error: {error_msg[:100]}")
+                            return {"success": False, "error": f"Jina: {error_msg[:100]}"}
+                    except json.JSONDecodeError:
+                        pass  # Not JSON, continue processing
+
+                # Check minimum length
+                if len(text) < 500:
+                    print(f"⚠️ Jina returned too short: {len(text)} chars")
+                    return {"success": False, "error": "Article content too short (paywall?)"}
+
+                # Extract title from Jina's markdown format
+                # Jina returns: Title: ...\n\nURL Source: ...\n\nMarkdown Content: ...
+                title = "Untitled"
+                lines = text.split('\n')
+                for line in lines[:5]:
+                    if line.startswith('Title:'):
+                        title = line[6:].strip()
+                        break
+
+                # Clean up the markdown - remove metadata headers
+                content_start = text.find('\n\n')
+                if content_start > 0:
+                    # Skip past multiple header sections
+                    clean_text = text
+                    for _ in range(3):  # Skip up to 3 header sections
+                        next_section = clean_text.find('\n\n', 1)
+                        if next_section > 0 and next_section < 200:
+                            clean_text = clean_text[next_section+2:]
+                        else:
+                            break
+                else:
+                    clean_text = text
+
+                print(f"✅ Jina success: {len(clean_text)} chars, title: {title[:50]}...")
+                return {
+                    "success": True,
+                    "text": clean_text[:15000],
+                    "title": title,
+                    "source": "jina"
+                }
+
+            else:
+                print(f"⚠️ Jina HTTP error: {response.status_code}")
+                return {"success": False, "error": f"Jina HTTP {response.status_code}"}
+
+    except httpx.TimeoutException:
+        print("⚠️ Jina timeout")
+        return {"success": False, "error": "Jina timeout"}
+    except Exception as e:
+        print(f"⚠️ Jina error: {e}")
+        return {"success": False, "error": f"Jina error: {str(e)}"}
 
 
 def extract_from_json_ld(soup: BeautifulSoup) -> tuple[str, str]:
@@ -269,16 +370,17 @@ async def try_archive_fallback(url: str, client: httpx.AsyncClient) -> tuple[str
 
 async def scrape_article(url: str) -> dict:
     """
-    Scrape article content from a URL with smart fallback.
-    For known cloud-blocked domains (CNN, BBC, etc.), tries archive.today FIRST.
-    If direct access fails (403/401), tries archive.today as backdoor.
+    Scrape article content from a URL with smart fallback chain:
+    1. JINA.AI (handles JS rendering + content cleaning)
+    2. Archive.today (for blocked domains)
+    3. Direct fetch with JSON-LD extraction
 
     Returns: {
         "success": bool,
         "text": str,
         "title": str,
         "domain": str,
-        "source": str (direct/archive),
+        "source": str (jina/archive/direct),
         "error": str (if failed)
     }
     """
@@ -289,6 +391,26 @@ async def scrape_article(url: str) -> dict:
 
         print(f"🌐 Scraping: {url[:60]}...")
 
+        # =================================================================
+        # STEP 1: Try Jina.ai FIRST (best quality, handles JS sites)
+        # =================================================================
+        jina_result = await scrape_via_jina(url)
+        if jina_result["success"]:
+            return {
+                "success": True,
+                "text": jina_result["text"],
+                "title": jina_result["title"],
+                "domain": domain,
+                "source": "jina",
+                "canonical_url": url
+            }
+
+        # Jina failed - log and continue to fallbacks
+        print(f"⚠️ Jina failed: {jina_result.get('error', 'unknown')}, trying fallbacks...")
+
+        # =================================================================
+        # STEP 2: Fallback to Archive.today / Direct scraping
+        # =================================================================
         html = None
         source = "direct"
 
