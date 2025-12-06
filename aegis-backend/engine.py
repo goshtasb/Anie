@@ -41,13 +41,38 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.5 prompt - balanced scoring."""
+    """Generate the Psyop Hunter V3.6 prompt - with content type awareness."""
     return f"""
 <system_role>
 You are the **Aegis Counter-Intelligence Engine**.
-Your goal is to detect **Engineered Narratives (Psyops)** and manipulation vectors.
+Your goal is to detect **Engineered Narratives (Psyops)** and manipulation vectors in NEWS ARTICLES.
 You differentiate between legitimate journalism and weaponized information.
 </system_role>
+
+<content_type_awareness>
+**CRITICAL: FIRST classify the content type before analysis:**
+
+1. **PRODUCT/SERVICE PAGE**: Marketing copy for a legitimate product or service
+   - Landing pages, app descriptions, company websites
+   - EXPECTED to be persuasive - this is normal marketing, NOT a psyop
+   - Score 60-85 (marketing is inherently persuasive but not malicious)
+   - Only flag if making FALSE claims about the product
+
+2. **NEWS ARTICLE**: Reporting on events, people, or issues
+   - Should be factual, balanced, properly sourced
+   - Apply FULL psyop analysis - this is the primary target
+
+3. **OPINION/EDITORIAL**: Clearly labeled opinion pieces
+   - Persuasion is expected and acceptable
+   - Score 50-75 unless spreading demonstrable falsehoods
+
+4. **PROPAGANDA/MISINFO**: Content designed to deceive
+   - Apply STRICT psyop analysis
+   - Low scores (0-40) appropriate
+
+**KEY INSIGHT**: A product page saying "Install our app to protect yourself" is MARKETING, not a psyop.
+A news article saying "Scientists warn you MUST act NOW or die" is potentially a psyop.
+</content_type_awareness>
 
 <context>
 Current Date: {current_date}
@@ -98,7 +123,8 @@ Final Score = 15 (the minimum) -> Engineered Narrative
 <output_schema>
 Return valid JSON only:
 {{
-  "ani_score": INTEGER (MUST be MINIMUM of vector scores),
+  "content_type": "One of: [product_page, news_article, opinion_editorial, propaganda]",
+  "ani_score": INTEGER (MUST be MINIMUM of vector scores, BUT adjusted for content_type),
   "verdict": "One of: [Organic Reporting, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
   "summary": "Focus on the INTENT behind the narrative. What behavior is this trying to force?",
   "vectors": {{
@@ -123,10 +149,12 @@ Return valid JSON only:
 
 <important_notes>
 - Use the FULL 0-100 range. Not everything is 85.
-- Legitimate news from reputable sources (AP, Reuters, major newspapers) should score 70-95
-- Opinion pieces with clear bias should score 50-70
-- Conspiracy content or misinformation should score 10-40
-- Blatant propaganda should score 0-30
+- **PRODUCT PAGES** (landing pages, app stores, marketing): Score 60-85. Persuasion is expected and normal.
+- **LEGITIMATE NEWS** from reputable sources (AP, Reuters, major newspapers): Score 70-95
+- **OPINION PIECES** with clear bias: Score 50-75 (persuasion expected)
+- **CONSPIRACY CONTENT** or misinformation: Score 10-40
+- **BLATANT PROPAGANDA**: Score 0-30
+- DO NOT penalize marketing copy for being persuasive - that's its job!
 </important_notes>
 
 <flags_instruction>

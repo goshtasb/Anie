@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.31"  # Jina.ai integration - JavaScript rendering for JS-heavy sites
+API_VERSION = "1.0.32"  # Content-type awareness - don't penalize marketing for being persuasive
 
 @app.get("/")
 def health_check():
