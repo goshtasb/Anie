@@ -33,6 +33,19 @@ PAYWALL_DOMAINS = [
     'washingtonpost.com', 'latimes.com'
 ]
 
+# Domains that block cloud server IPs (return 200 but garbage content)
+# These sites require archive.today as PRIMARY source
+CLOUD_BLOCKED_DOMAINS = [
+    'cnn.com', 'edition.cnn.com',
+    'bbc.com', 'bbc.co.uk',
+    'reuters.com',
+    'apnews.com',
+    'nbcnews.com',
+    'cbsnews.com',
+    'abcnews.go.com',
+    'foxnews.com',
+]
+
 # Elements to remove (ads, nav, comments, etc.)
 NOISE_TAGS = [
     'script', 'style', 'noscript', 'iframe', 'svg', 'canvas',
@@ -56,6 +69,15 @@ NOISE_IDS = [
 ]
 
 
+def is_cloud_blocked_domain(domain: str) -> bool:
+    """Check if domain is known to block cloud server IPs."""
+    domain_lower = domain.lower()
+    for blocked in CLOUD_BLOCKED_DOMAINS:
+        if blocked in domain_lower:
+            return True
+    return False
+
+
 def clean_text(text: str) -> str:
     """Normalize whitespace in extracted text."""
     # Replace multiple spaces/newlines with single space
@@ -63,6 +85,30 @@ def clean_text(text: str) -> str:
     # Remove leading/trailing whitespace
     text = text.strip()
     return text
+
+
+def is_garbled_text(text: str) -> bool:
+    """
+    Detect if text is garbled/binary garbage (e.g., from blocked CDNs).
+    Returns True if text appears to be non-readable garbage.
+    """
+    if not text or len(text) < 100:
+        return True
+
+    # Sample the first 500 chars
+    sample = text[:500]
+
+    # Count printable ASCII characters (letters, numbers, basic punctuation)
+    printable_count = sum(1 for c in sample if c.isalnum() or c in ' .,!?\'"-:;()')
+
+    # If less than 60% of characters are printable, it's likely garbage
+    ratio = printable_count / len(sample) if sample else 0
+
+    if ratio < 0.6:
+        print(f"⚠️ Garbled text detected: {ratio:.0%} printable chars")
+        return True
+
+    return False
 
 
 def extract_from_json_ld(soup: BeautifulSoup) -> tuple[str, str]:
@@ -224,6 +270,7 @@ async def try_archive_fallback(url: str, client: httpx.AsyncClient) -> tuple[str
 async def scrape_article(url: str) -> dict:
     """
     Scrape article content from a URL with smart fallback.
+    For known cloud-blocked domains (CNN, BBC, etc.), tries archive.today FIRST.
     If direct access fails (403/401), tries archive.today as backdoor.
 
     Returns: {
@@ -247,33 +294,52 @@ async def scrape_article(url: str) -> dict:
 
         # Fetch the page with browser-like headers
         async with httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
-            response = await client.get(url, headers=REQUEST_HEADERS)
 
-            if response.status_code == 200:
-                html = response.text
-                print(f"📄 Received {len(html)} chars of HTML")
-            elif response.status_code in [401, 403, 429]:
-                # BLOCKED! Try the archive backdoor
-                print(f"⚠️ Direct access blocked ({response.status_code}). Trying archives...")
+            # STRATEGY: For known cloud-blocked domains, try archive FIRST
+            # These sites return 200 but garbage HTML to cloud IPs
+            if is_cloud_blocked_domain(domain):
+                print(f"🛡️ Known cloud-blocked domain ({domain}), trying archive FIRST...")
                 html, source = await try_archive_fallback(url, client)
 
-                if not html:
-                    # Archive also failed - give helpful error
-                    is_paywall = any(pw in domain for pw in PAYWALL_DOMAINS)
-                    if is_paywall:
+                if html:
+                    print(f"✅ Archive hit for cloud-blocked domain!")
+                else:
+                    # Archive miss - try direct anyway (might work for some articles)
+                    print(f"⚠️ Archive miss, falling back to direct fetch...")
+                    response = await client.get(url, headers=REQUEST_HEADERS)
+                    if response.status_code == 200:
+                        html = response.text
+                        source = "direct"
+                        print(f"📄 Direct fallback: {len(html)} chars of HTML")
+            else:
+                # Normal domains - try direct first
+                response = await client.get(url, headers=REQUEST_HEADERS)
+
+                if response.status_code == 200:
+                    html = response.text
+                    print(f"📄 Received {len(html)} chars of HTML")
+                elif response.status_code in [401, 403, 429]:
+                    # BLOCKED! Try the archive backdoor
+                    print(f"⚠️ Direct access blocked ({response.status_code}). Trying archives...")
+                    html, source = await try_archive_fallback(url, client)
+
+                    if not html:
+                        # Archive also failed - give helpful error
+                        is_paywall = any(pw in domain for pw in PAYWALL_DOMAINS)
+                        if is_paywall:
+                            return {
+                                "success": False,
+                                "error": f"This site requires a subscription and no archive is available. Use the Chrome extension while logged in."
+                            }
                         return {
                             "success": False,
-                            "error": f"This site requires a subscription and no archive is available. Use the Chrome extension while logged in."
+                            "error": f"Access denied by {domain}. Try using the Chrome extension instead."
                         }
+                else:
                     return {
                         "success": False,
-                        "error": f"Access denied by {domain}. Try using the Chrome extension instead."
+                        "error": f"HTTP {response.status_code}: Could not fetch page"
                     }
-            else:
-                return {
-                    "success": False,
-                    "error": f"HTTP {response.status_code}: Could not fetch page"
-                }
 
         if not html:
             return {
@@ -296,6 +362,19 @@ async def scrape_article(url: str) -> dict:
             return {
                 "success": False,
                 "error": "Could not extract article content (too short or not an article)"
+            }
+
+        # Check for garbled/binary garbage (common with blocked CDNs)
+        if is_garbled_text(text):
+            is_known_blocked = is_cloud_blocked_domain(domain)
+            if is_known_blocked:
+                return {
+                    "success": False,
+                    "error": f"{domain} blocks automated requests. Use the Chrome extension to scan this article directly from your browser."
+                }
+            return {
+                "success": False,
+                "error": "Could not extract readable content. Site may be blocking automated requests."
             }
 
         # Extract title (prefer JSON-LD title if available)
