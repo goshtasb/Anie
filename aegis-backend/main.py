@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.33"  # V3.4 Context-Aware prompt with Commercial Immunity
+API_VERSION = "1.0.34"  # Hybrid Scraper: Firecrawl (Primary) -> Jina (Fallback)
 
 @app.get("/")
 def health_check():

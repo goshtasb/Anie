@@ -1,14 +1,39 @@
 # scraper.py - Server-side article scraper for mobile/web users
+# Hybrid Scraper: Firecrawl (Primary) -> Jina (Fallback) -> Direct
 import httpx
+import os
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import re
 import json
 
 # =============================================================================
-# JINA.AI INTEGRATION - The Smart Bridge
+# FIRECRAWL INTEGRATION - Premium Scraper (Primary)
 # =============================================================================
-# Jina (r.jina.ai) is a specialized API that:
+# Firecrawl is a premium scraping API that:
+# 1. Uses headless browser with anti-bot bypass
+# 2. Returns clean markdown (better for AI understanding)
+# 3. Handles paywalls and JS-heavy sites
+# 4. 500 free scrapes/month
+# =============================================================================
+
+firecrawl_client = None
+firecrawl_key = os.environ.get("FIRECRAWL_API_KEY")
+
+if firecrawl_key and not firecrawl_key.startswith("fc-your"):
+    try:
+        from firecrawl import FirecrawlApp
+        firecrawl_client = FirecrawlApp(api_key=firecrawl_key)
+        print("🔥 Firecrawl: ACTIVE (Primary Scraper)")
+    except ImportError:
+        print("⚠️ Firecrawl: firecrawl-py not installed")
+else:
+    print("⚠️ Firecrawl: DISABLED (No API key)")
+
+# =============================================================================
+# JINA.AI INTEGRATION - Free Fallback
+# =============================================================================
+# Jina (r.jina.ai) is a free alternative that:
 # 1. Uses a Headless Browser (executes JavaScript)
 # 2. Cleans the content (strips ads, nav, popups)
 # 3. Handles bot detection (proper browser fingerprinting)
@@ -122,6 +147,66 @@ def is_garbled_text(text: str) -> bool:
         return True
 
     return False
+
+
+async def scrape_via_firecrawl(url: str) -> dict:
+    """
+    Scrape article using Firecrawl's premium API (Primary).
+    Returns clean markdown with excellent anti-bot bypass.
+
+    Returns: {
+        "success": bool,
+        "text": str,
+        "title": str,
+        "source": "firecrawl",
+        "error": str (if failed)
+    }
+    """
+    if not firecrawl_client:
+        return {"success": False, "error": "Firecrawl not configured"}
+
+    print(f"🔥 Scraping via Firecrawl: {url[:50]}...")
+
+    try:
+        response = firecrawl_client.scrape_url(
+            url,
+            params={
+                'formats': ['markdown'],
+                'onlyMainContent': True,
+                'timeout': 15000
+            }
+        )
+
+        # Check for valid markdown response
+        if isinstance(response, dict) and 'markdown' in response:
+            text = response['markdown']
+            if len(text) > 500:
+                # Extract title from first markdown header
+                title = "Untitled"
+                lines = text.split('\n')
+                for line in lines[:10]:
+                    if line.startswith('# '):
+                        title = line[2:].strip()
+                        break
+
+                print(f"✅ Firecrawl success: {len(text)} chars, title: {title[:50]}...")
+                return {
+                    "success": True,
+                    "text": text[:15000],
+                    "title": title,
+                    "source": "firecrawl"
+                }
+            else:
+                print(f"⚠️ Firecrawl result too short: {len(text)} chars")
+                return {"success": False, "error": "Content too short (paywall?)"}
+        else:
+            print(f"⚠️ Firecrawl unexpected format: {type(response)}")
+            return {"success": False, "error": "Unexpected response format"}
+
+    except Exception as e:
+        error_str = str(e)
+        print(f"❌ Firecrawl error: {error_str[:100]}")
+        return {"success": False, "error": f"Firecrawl: {error_str[:100]}"}
 
 
 async def scrape_via_jina(url: str) -> dict:
@@ -371,16 +456,17 @@ async def try_archive_fallback(url: str, client: httpx.AsyncClient) -> tuple[str
 async def scrape_article(url: str) -> dict:
     """
     Scrape article content from a URL with smart fallback chain:
-    1. JINA.AI (handles JS rendering + content cleaning)
-    2. Archive.today (for blocked domains)
-    3. Direct fetch with JSON-LD extraction
+    1. FIRECRAWL (Premium - best quality, anti-bot bypass)
+    2. JINA.AI (Free fallback - handles JS rendering)
+    3. Archive.today (for blocked domains)
+    4. Direct fetch with JSON-LD extraction
 
     Returns: {
         "success": bool,
         "text": str,
         "title": str,
         "domain": str,
-        "source": str (jina/archive/direct),
+        "source": str (firecrawl/jina/archive/direct),
         "error": str (if failed)
     }
     """
@@ -392,7 +478,23 @@ async def scrape_article(url: str) -> dict:
         print(f"🌐 Scraping: {url[:60]}...")
 
         # =================================================================
-        # STEP 1: Try Jina.ai FIRST (best quality, handles JS sites)
+        # STEP 1: Try Firecrawl FIRST (Premium, best quality)
+        # =================================================================
+        if firecrawl_client:
+            fc_result = await scrape_via_firecrawl(url)
+            if fc_result["success"]:
+                return {
+                    "success": True,
+                    "text": fc_result["text"],
+                    "title": fc_result["title"],
+                    "domain": domain,
+                    "source": "firecrawl",
+                    "canonical_url": url
+                }
+            print(f"⚠️ Firecrawl failed: {fc_result.get('error', 'unknown')}, trying Jina...")
+
+        # =================================================================
+        # STEP 2: Try Jina.ai (Free fallback)
         # =================================================================
         jina_result = await scrape_via_jina(url)
         if jina_result["success"]:
@@ -406,10 +508,10 @@ async def scrape_article(url: str) -> dict:
             }
 
         # Jina failed - log and continue to fallbacks
-        print(f"⚠️ Jina failed: {jina_result.get('error', 'unknown')}, trying fallbacks...")
+        print(f"⚠️ Jina failed: {jina_result.get('error', 'unknown')}, trying archive/direct...")
 
         # =================================================================
-        # STEP 2: Fallback to Archive.today / Direct scraping
+        # STEP 3: Fallback to Archive.today / Direct scraping
         # =================================================================
         html = None
         source = "direct"
