@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.34"  # Hybrid Scraper: Firecrawl (Primary) -> Jina (Fallback)
+API_VERSION = "1.0.35"  # Math Integrity: Consistency Boost prevents 100+100+100=95
 
 @app.get("/")
 def health_check():

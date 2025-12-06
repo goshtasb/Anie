@@ -432,12 +432,23 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                             analysis=v.get("analysis", "No analysis")
                         )
 
-                # ENFORCE MINIMUM SCORE RULE
+                # ENFORCE MINIMUM SCORE RULE (for NEWS content - catches bad articles)
                 ai_score = analysis.get("ani_score", 50)
                 min_vector = min(vector_scores) if vector_scores else 50
+                avg_vector = sum(vector_scores) / len(vector_scores) if vector_scores else 50
+
+                # Start with AI's score constrained by minimum vector
                 final_score = min(ai_score, min_vector)
 
-                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, Final={final_score}")
+                # CONSISTENCY BOOST (The "Math Fix")
+                # If vectors are all high (avg > 85) but AI gave a lower score,
+                # boost the final score to match the vectors. This prevents
+                # "100+100+100 = 95" confusion that erodes user trust.
+                if avg_vector > final_score and min_vector >= 70:
+                    final_score = int(avg_vector)
+                    print(f"📈 Consistency Boost: Vectors avg {avg_vector:.0f} > AI {ai_score}, boosting to {final_score}")
+
+                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, AvgVector={avg_vector:.0f}, Final={final_score}")
 
                 # Determine verdict based on final score
                 if final_score <= 30:
