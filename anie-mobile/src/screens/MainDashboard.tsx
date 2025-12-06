@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import { Colors, ScanHistoryItem, ScanResult, getScoreColor } from '../types';
+import { Colors, ScanHistoryItem, ScanResult, getScoreColor, VectorAnalysis } from '../types';
 import { scanUrl, extractDomain, isValidUrl } from '../utils/api';
 import { getScanHistory, addToHistory, clearHistory, generateId } from '../utils/storage';
 
@@ -121,8 +121,8 @@ export function MainDashboard() {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>AXIOM</Text>
-        <Text style={styles.headerSubtitle}>// NEURAL CORE</Text>
+        <Text style={styles.headerTitle}>ACUITY</Text>
+        <Text style={styles.headerSubtitle}>// NARRATIVE INTEGRITY</Text>
       </View>
 
       {/* URL Input */}
@@ -210,6 +210,46 @@ export function MainDashboard() {
   );
 }
 
+function VectorCard({
+  title,
+  score,
+  status,
+  issues,
+}: {
+  title: string;
+  score: number;
+  status: 'pass' | 'flag' | 'fail';
+  issues: string[];
+}) {
+  const statusColors = {
+    pass: Colors.safe,
+    flag: Colors.warning,
+    fail: Colors.critical,
+  };
+  const statusColor = statusColors[status];
+
+  return (
+    <View style={vectorStyles.card}>
+      <View style={vectorStyles.cardHeader}>
+        <Text style={vectorStyles.cardTitle}>{title}</Text>
+        <Text style={[vectorStyles.cardScore, { color: statusColor }]}>{score}</Text>
+      </View>
+      <View style={[vectorStyles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+        <Text style={[vectorStyles.statusText, { color: statusColor }]}>
+          {status.toUpperCase()}
+        </Text>
+      </View>
+      {issues.length > 0 && (
+        <View style={vectorStyles.issuesList}>
+          {issues.slice(0, 2).map((issue, index) => (
+            <Text key={index} style={vectorStyles.issueText}>• {issue}</Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function ResultModal({
   visible,
   result,
@@ -224,6 +264,7 @@ function ResultModal({
   if (!result) return null;
 
   const scoreColor = getScoreColor(result.ani_score);
+  const vectors = result.vectors;
 
   return (
     <Modal
@@ -233,29 +274,71 @@ function ResultModal({
       onRequestClose={onClose}
     >
       <View style={modalStyles.overlay}>
-        <View style={modalStyles.content}>
-          <View style={modalStyles.header}>
-            <Text style={modalStyles.headerTitle}>SCAN COMPLETE</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={modalStyles.closeText}>CLOSE</Text>
-            </TouchableOpacity>
-          </View>
+        <FlatList
+          data={[1]} // Single item to enable scrolling
+          keyExtractor={() => 'result'}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={modalStyles.scrollContent}
+          renderItem={() => (
+            <View style={modalStyles.content}>
+              <View style={modalStyles.header}>
+                <Text style={modalStyles.headerTitle}>SCAN COMPLETE</Text>
+                <TouchableOpacity onPress={onClose}>
+                  <Text style={modalStyles.closeText}>CLOSE</Text>
+                </TouchableOpacity>
+              </View>
 
-          <Text style={modalStyles.domain}>{extractDomain(url)}</Text>
+              <Text style={modalStyles.domain}>{extractDomain(url)}</Text>
 
-          <View style={modalStyles.scoreSection}>
-            <Text style={[modalStyles.score, { color: scoreColor }]}>
-              {result.ani_score}
-            </Text>
-            <Text style={[modalStyles.verdict, { color: scoreColor }]}>
-              {result.verdict}
-            </Text>
-          </View>
+              <View style={modalStyles.scoreSection}>
+                <Text style={[modalStyles.score, { color: scoreColor }]}>
+                  {result.ani_score}
+                </Text>
+                <Text style={[modalStyles.verdict, { color: scoreColor }]}>
+                  {result.verdict}
+                </Text>
+              </View>
 
-          {result.summary && (
-            <Text style={modalStyles.summary}>{result.summary}</Text>
+              {result.summary && (
+                <Text style={modalStyles.summary}>{result.summary}</Text>
+              )}
+
+              {/* Forensic Breakdown */}
+              {vectors && (
+                <View style={vectorStyles.container}>
+                  <Text style={vectorStyles.sectionTitle}>FORENSIC BREAKDOWN</Text>
+
+                  {vectors.reality_anchoring && (
+                    <VectorCard
+                      title="REALITY ANCHORING"
+                      score={vectors.reality_anchoring.score}
+                      status={vectors.reality_anchoring.status}
+                      issues={vectors.reality_anchoring.issues}
+                    />
+                  )}
+
+                  {vectors.tribal_engineering && (
+                    <VectorCard
+                      title="TRIBAL ENGINEERING"
+                      score={vectors.tribal_engineering.score}
+                      status={vectors.tribal_engineering.status}
+                      issues={vectors.tribal_engineering.issues}
+                    />
+                  )}
+
+                  {vectors.neuro_linguistic && (
+                    <VectorCard
+                      title="NEURO-LINGUISTIC"
+                      score={vectors.neuro_linguistic.score}
+                      status={vectors.neuro_linguistic.status}
+                      issues={vectors.neuro_linguistic.issues}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
           )}
-        </View>
+        />
       </View>
     </Modal>
   );
@@ -429,12 +512,17 @@ const modalStyles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   content: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 340,
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -480,5 +568,71 @@ const modalStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
+  },
+});
+
+const vectorStyles = StyleSheet.create({
+  container: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  sectionTitle: {
+    fontFamily: 'Menlo',
+    fontSize: 10,
+    color: Colors.textDim,
+    letterSpacing: 2,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardTitle: {
+    fontFamily: 'Menlo',
+    fontSize: 10,
+    color: Colors.text,
+    letterSpacing: 1,
+    fontWeight: '600',
+  },
+  cardScore: {
+    fontFamily: 'Menlo',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  statusText: {
+    fontFamily: 'Menlo',
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  issuesList: {
+    marginTop: 4,
+  },
+  issueText: {
+    fontFamily: 'Menlo',
+    fontSize: 10,
+    color: Colors.textMuted,
+    lineHeight: 16,
+    marginBottom: 4,
   },
 });
