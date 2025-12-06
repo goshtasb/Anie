@@ -58,16 +58,17 @@ nav {
 
 /* HERO LAYOUT */
 .hero {
-    min-height: 90vh;
+    min-height: 100vh;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    align-items: center;
-    padding: 0 6%;
+    align-items: start;
+    padding: 120px 6% 60px 6%;
 }
 
 .content-left {
     max-width: 500px;
     z-index: 2;
+    position: relative;
 }
 
 h1 {
@@ -257,6 +258,7 @@ h1 {
     color: var(--text-muted);
     line-height: 1.5;
     margin-bottom: 8px;
+    white-space: pre-wrap;
 }
 
 .vec-evidence {
@@ -272,8 +274,9 @@ h1 {
 .visual-right {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     position: relative;
+    padding-top: 60px;
 }
 
 .neural-orb {
@@ -369,9 +372,9 @@ footer {
 
 /* MOBILE */
 @media (max-width: 768px) {
-    .hero { grid-template-columns: 1fr; text-align: center; }
-    .content-left { margin: 0 auto; padding-top: 6rem; }
-    .visual-right { margin-top: 3rem; }
+    .hero { grid-template-columns: 1fr; text-align: center; padding-top: 100px; }
+    .content-left { margin: 0 auto; }
+    .visual-right { margin-top: 3rem; padding-top: 0; }
     .neural-orb { width: 280px; height: 280px; }
     h1 { font-size: 2.8rem; }
     .subtitle { font-size: 1rem; }
