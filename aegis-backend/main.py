@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.36"  # Acuity Rebrand: The System is ACUITY, the Interface is A.N.I.E.
+API_VERSION = "1.0.37"  # Nuclear URL Sanitizer: Unified cache keys across all platforms
 
 @app.get("/")
 def health_check():

@@ -1,6 +1,7 @@
 import os
 import hashlib
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -20,30 +21,47 @@ else:
     print("⚠️ Supabase not configured. Caching disabled.")
 
 
-def get_stable_hash(url: str) -> str:
+def get_nuclear_hash(url: str) -> str:
     """
-    Hash the CANONICAL URL for stable caching.
+    NUCLEAR URL SANITIZER - Aggressive normalization for cache consistency.
 
-    This survives:
-    - Page refreshes (ads change)
-    - Tracking params (?ref=twitter)
-    - Different entry points to same article
+    Reduces 'https://www.CNN.com/story/?id=123&ref=twitter' to 'cnn.com/story'
 
-    The frontend (content.js) extracts <link rel="canonical">
-    which is the article's True Name that never changes.
+    This ensures:
+    - Website scans (with ?cid=ios_app params)
+    - Extension scans (canonical URLs)
+    - Mobile scans (shared links with tracking)
+    ALL resolve to the SAME cache key.
     """
-    # Strip trailing slashes for consistency
-    clean_url = url.rstrip('/')
-    return hashlib.md5(clean_url.encode('utf-8')).hexdigest()
+    try:
+        parsed = urlparse(url.lower().strip())
+
+        # 1. Strip 'www.' from netloc
+        netloc = parsed.netloc.replace('www.', '')
+
+        # 2. Strip trailing slash from path
+        path = parsed.path.rstrip('/')
+
+        # 3. Rebuild WITHOUT scheme (http/https), params, query, or fragment
+        # We only keep: netloc + path
+        clean_string = f"{netloc}{path}"
+
+        print(f"🔬 Nuclear Sanitizer: '{url[:50]}...' -> '{clean_string}'")
+
+        # 4. Hash it
+        return hashlib.md5(clean_string.encode('utf-8')).hexdigest()
+    except Exception as e:
+        print(f"⚠️ Nuclear hash fallback: {e}")
+        return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 
 def check_cache(url: str):
-    """Check cache using stable URL hash with 24-hour TTL."""
+    """Check cache using NUCLEAR URL hash with 24-hour TTL."""
     if not supabase:
         print("⚠️ Cache Check: Supabase not configured, skipping cache")
         return None
 
-    url_hash = get_stable_hash(url)
+    url_hash = get_nuclear_hash(url)
     print(f"🔍 Cache Check: hash={url_hash[:12]}... for URL: {url[:60]}...")
 
     try:
@@ -87,11 +105,11 @@ def check_cache(url: str):
 
 
 def save_to_cache(url: str, data: dict, ani_score: int):
-    """Save result using stable URL hash."""
+    """Save result using NUCLEAR URL hash."""
     if not supabase:
         return
 
-    url_hash = get_stable_hash(url)
+    url_hash = get_nuclear_hash(url)
 
     try:
         # Upsert: replace existing entry (handles re-scans after TTL expiry)
@@ -121,7 +139,7 @@ def clear_cache(url: str) -> bool:
     if not supabase:
         return False
 
-    url_hash = get_stable_hash(url)
+    url_hash = get_nuclear_hash(url)
 
     try:
         supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
