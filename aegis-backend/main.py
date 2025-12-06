@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.38"  # V3.6 Strict Framing: Adjective Trap punishes editorializing in news
+API_VERSION = "1.0.39"  # V3.7 Chain of Thought: Scratchpad Protocol forces explicit reasoning
 
 @app.get("/")
 def health_check():
