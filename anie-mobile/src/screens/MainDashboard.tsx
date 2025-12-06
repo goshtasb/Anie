@@ -290,6 +290,15 @@ function ResultModal({
 
               <Text style={modalStyles.domain}>{extractDomain(url)}</Text>
 
+              {/* Geo-Intel Origin Badge */}
+              {result.origin_location && result.origin_location !== 'Global' && (
+                <View style={modalStyles.geoIntelBadge}>
+                  <Text style={modalStyles.geoIntelText}>
+                    ORIGIN: {result.origin_location.toUpperCase()}
+                  </Text>
+                </View>
+              )}
+
               <View style={modalStyles.scoreSection}>
                 <Text style={[modalStyles.score, { color: scoreColor }]}>
                   {result.ani_score}
@@ -568,6 +577,22 @@ const modalStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  geoIntelBadge: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(78, 84, 200, 0.2)',
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  geoIntelText: {
+    fontFamily: 'Menlo',
+    fontSize: 10,
+    color: Colors.accent,
+    letterSpacing: 1,
   },
 });
 

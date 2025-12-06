@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  Image,
+  ImageBackground,
 } from 'react-native';
-import { Colors, ScanResult, getScoreColor, getScoreLabel } from '../types';
+import { BlurView } from 'expo-blur';
+import { Colors, ScanResult, Coordinates, getScoreColor, getScoreLabel } from '../types';
 import { scanUrl, extractDomain, extractUrlFromText, isValidUrl } from '../utils/api';
 import { addToHistory, generateId } from '../utils/storage';
 
@@ -18,13 +21,26 @@ interface ShareModalProps {
   onClose: () => void;
 }
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Mapbox Static Images API - Dark theme
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiYW5pZWFpIiwiYSI6ImNtaXV1NDNxODF4Z2IzdG9iY2dmYjV5eWMifQ.XkJvuy_5Vku3KWqAhszJ-w';
+const MAPBOX_STYLE = 'dark-v11';
+
+function getMapboxStaticUrl(coords: Coordinates, zoom: number = 4): string {
+  // Mapbox Static Images API URL
+  // Format: https://api.mapbox.com/styles/v1/mapbox/{style}/static/{lon},{lat},{zoom}/{width}x{height}@2x?access_token={token}
+  const width = Math.round(SCREEN_WIDTH);
+  const height = Math.round(SCREEN_HEIGHT * 0.6);
+  return `https://api.mapbox.com/styles/v1/mapbox/${MAPBOX_STYLE}/static/${coords.lon},${coords.lat},${zoom},0/${width}x${height}@2x?access_token=${MAPBOX_TOKEN}`;
+}
 
 export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [url, setUrl] = useState<string>('');
+  const [mapUrl, setMapUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function analyze() {
@@ -52,6 +68,11 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
         const scanResult = await scanUrl(targetUrl);
         setResult(scanResult);
 
+        // Generate map URL if coordinates are available
+        if (scanResult.coordinates) {
+          setMapUrl(getMapboxStaticUrl(scanResult.coordinates));
+        }
+
         // Save to history
         addToHistory({
           id: generateId(),
@@ -73,101 +94,137 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
 
   const scoreColor = result ? getScoreColor(result.ani_score) : Colors.textMuted;
   const scoreLabel = result ? getScoreLabel(result.ani_score) : '';
+  const hasGeoIntel = result?.origin_location && result.origin_location !== 'Global';
 
+  // Render the main content
+  const renderContent = () => (
+    <>
+      {/* Handle bar */}
+      <View style={styles.handleBar} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>ACUITY // SCAN</Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <Text style={styles.closeText}>CLOSE</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* URL Display */}
+      {url && (
+        <Text style={styles.urlText} numberOfLines={1}>
+          {extractDomain(url)}
+        </Text>
+      )}
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Loading State */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.accent} />
+            <Text style={styles.loadingText}>Analyzing narrative structure...</Text>
+          </View>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>!</Text>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {/* Result State */}
+        {result && (
+          <View style={styles.resultContainer}>
+            {/* Geo-Intel Origin Tag */}
+            {hasGeoIntel && (
+              <View style={styles.geoIntelBadge}>
+                <Text style={styles.geoIntelIcon}>📍</Text>
+                <Text style={styles.geoIntelText}>ORIGIN: {result.origin_location?.toUpperCase()}</Text>
+              </View>
+            )}
+
+            {/* Score */}
+            <View style={styles.scoreSection}>
+              <Text style={[styles.score, { color: scoreColor }]}>
+                {result.ani_score}
+              </Text>
+              <Text style={[styles.scoreLabel, { color: scoreColor }]}>
+                {scoreLabel}
+              </Text>
+            </View>
+
+            {/* Verdict */}
+            <Text style={styles.verdict}>{result.verdict}</Text>
+
+            {/* Summary */}
+            {result.summary && (
+              <Text style={styles.summary}>{result.summary}</Text>
+            )}
+
+            {/* Vector Breakdown */}
+            {result.vectors && (
+              <View style={styles.vectorsSection}>
+                <Text style={styles.vectorsTitle}>FORENSIC BREAKDOWN</Text>
+
+                {result.vectors.reality_anchoring && (
+                  <VectorRow
+                    label="Reality Anchoring"
+                    score={result.vectors.reality_anchoring.score}
+                    issues={result.vectors.reality_anchoring.issues}
+                  />
+                )}
+
+                {result.vectors.tribal_engineering && (
+                  <VectorRow
+                    label="Tribal Engineering"
+                    score={result.vectors.tribal_engineering.score}
+                    issues={result.vectors.tribal_engineering.issues}
+                  />
+                )}
+
+                {result.vectors.neuro_linguistic && (
+                  <VectorRow
+                    label="Neuro-Linguistic"
+                    score={result.vectors.neuro_linguistic.score}
+                    issues={result.vectors.neuro_linguistic.issues}
+                  />
+                )}
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </>
+  );
+
+  // If we have coordinates and a map URL, render with map background
+  if (mapUrl && result?.coordinates) {
+    return (
+      <View style={styles.overlay}>
+        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+
+        <ImageBackground
+          source={{ uri: mapUrl }}
+          style={styles.mapBackground}
+          imageStyle={styles.mapImage}
+        >
+          <BlurView intensity={80} tint="dark" style={styles.blurCard}>
+            {renderContent()}
+          </BlurView>
+        </ImageBackground>
+      </View>
+    );
+  }
+
+  // Default: No map background (Global origin or no Mapbox token)
   return (
     <View style={styles.overlay}>
       <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
       <View style={styles.modal}>
-        {/* Handle bar */}
-        <View style={styles.handleBar} />
-
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>AXIOM // SCAN</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeText}>CLOSE</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* URL Display */}
-        {url && (
-          <Text style={styles.urlText} numberOfLines={1}>
-            {extractDomain(url)}
-          </Text>
-        )}
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Loading State */}
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.accent} />
-              <Text style={styles.loadingText}>Analyzing narrative structure...</Text>
-            </View>
-          )}
-
-          {/* Error State */}
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorIcon}>!</Text>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          {/* Result State */}
-          {result && (
-            <View style={styles.resultContainer}>
-              {/* Score */}
-              <View style={styles.scoreSection}>
-                <Text style={[styles.score, { color: scoreColor }]}>
-                  {result.ani_score}
-                </Text>
-                <Text style={[styles.scoreLabel, { color: scoreColor }]}>
-                  {scoreLabel}
-                </Text>
-              </View>
-
-              {/* Verdict */}
-              <Text style={styles.verdict}>{result.verdict}</Text>
-
-              {/* Summary */}
-              {result.summary && (
-                <Text style={styles.summary}>{result.summary}</Text>
-              )}
-
-              {/* Vector Breakdown */}
-              {result.vectors && (
-                <View style={styles.vectorsSection}>
-                  <Text style={styles.vectorsTitle}>FORENSIC BREAKDOWN</Text>
-
-                  {result.vectors.reality_anchoring && (
-                    <VectorRow
-                      label="Reality Anchoring"
-                      score={result.vectors.reality_anchoring.score}
-                      issues={result.vectors.reality_anchoring.issues}
-                    />
-                  )}
-
-                  {result.vectors.tribal_engineering && (
-                    <VectorRow
-                      label="Tribal Engineering"
-                      score={result.vectors.tribal_engineering.score}
-                      issues={result.vectors.tribal_engineering.issues}
-                    />
-                  )}
-
-                  {result.vectors.neuro_linguistic && (
-                    <VectorRow
-                      label="Neuro-Linguistic"
-                      score={result.vectors.neuro_linguistic.score}
-                      issues={result.vectors.neuro_linguistic.issues}
-                    />
-                  )}
-                </View>
-              )}
-            </View>
-          )}
-        </ScrollView>
+        {renderContent()}
       </View>
     </View>
   );
@@ -215,6 +272,25 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
+  // Map background styles
+  mapBackground: {
+    minHeight: SCREEN_HEIGHT * 0.5,
+    maxHeight: SCREEN_HEIGHT * 0.85,
+    justifyContent: 'flex-end',
+  },
+  mapImage: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  blurCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+    minHeight: SCREEN_HEIGHT * 0.5,
+    maxHeight: SCREEN_HEIGHT * 0.85,
+    paddingBottom: 40,
+  },
+  // Default modal styles
   modal: {
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 24,
@@ -297,6 +373,30 @@ const styles = StyleSheet.create({
   resultContainer: {
     paddingVertical: 20,
   },
+  // Geo-Intel Badge
+  geoIntelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(78, 84, 200, 0.2)',
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 20,
+    alignSelf: 'center',
+  },
+  geoIntelIcon: {
+    fontSize: 14,
+    marginRight: 8,
+  },
+  geoIntelText: {
+    fontFamily: 'Menlo',
+    fontSize: 11,
+    color: Colors.accent,
+    letterSpacing: 1,
+  },
   scoreSection: {
     alignItems: 'center',
     marginBottom: 20,
@@ -340,7 +440,7 @@ const styles = StyleSheet.create({
   },
   vectorRow: {
     marginBottom: 16,
-    backgroundColor: Colors.surfaceLight,
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',
     borderRadius: 8,
     padding: 12,
   },

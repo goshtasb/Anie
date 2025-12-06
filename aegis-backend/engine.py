@@ -112,6 +112,7 @@ Return valid JSON only. Fill "thinking_process" FIRST.
   "ani_score": INTEGER,
   "verdict": "One of: [Organic, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
   "summary": "One sentence explaining the classification and any concerns.",
+  "origin_location": "String. Identify the geopolitical 'Origin Point' of this narrative - where is this story being pushed from? Examples: 'Washington, DC', 'Moscow, Russia', 'Beijing, China', 'London, UK', 'Silicon Valley'. If the source is diffuse/internet-only with no clear geographic origin, use 'Global'.",
   "vectors": {{
     "reality_anchoring": {{
       "score": INTEGER,
@@ -447,6 +448,7 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                     ani_score=final_score,
                     summary=analysis.get("summary", "Psyop Hunter analysis complete."),
                     verdict=verdict,
+                    origin_location=analysis.get("origin_location", "Global"),
                     vectors=vectors,
                     fact_check=fact_check
                 )
@@ -496,6 +498,7 @@ async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIR
             ani_score=data.get("ani_score", 50),
             summary=data.get("summary", "Style-only psyop analysis (no external verification)."),
             verdict=data.get("verdict", "Analysis Complete"),
+            origin_location=data.get("origin_location", "Global"),
             vectors=vectors,
             fact_check=None
         )

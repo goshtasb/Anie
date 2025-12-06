@@ -1,7 +1,7 @@
 # main.py
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from schemas import ScanRequest, ANIResponse
+from schemas import ScanRequest, ANIResponse, Coordinates
 from engine import analyze_text
 import services
 from scraper import scrape_article
@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.40"  # V3.8 Iron Fist: Weakest Link Rule - Final Score <= Lowest Vector + 5
+API_VERSION = "1.0.42"  # V4.0 Data Exhaust: Event Ledger for B2B Analytics
 
 @app.get("/")
 def health_check():
@@ -50,12 +50,27 @@ async def clear_cache_endpoint(url: str = None):
 @app.post("/v1/scan", response_model=ANIResponse)
 async def scan_endpoint(
     payload: ScanRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
     x_user_id: str = Header(None, alias="X-User-ID")
 ):
+    # Extract headers for analytics (run once, reuse)
+    headers_dict = dict(request.headers)
+
     # 1. CACHE CHECK (Canonical URL)
     # Frontend sends the stable canonical URL, not the dirty browser URL
     cached = services.check_cache(payload.url)
     if cached:
+        # LOG CACHE HIT (Background - doesn't slow response)
+        background_tasks.add_task(
+            services.log_scan_event,
+            x_user_id,
+            payload.url,
+            cached.get("ani_score", 0),
+            "CACHE_HIT",
+            cached.get("origin_location", "Global"),
+            headers_dict
+        )
         return ANIResponse(**cached)
 
     # 2. PAYMENT GATE (DISABLED FOR ALPHA)
@@ -87,9 +102,26 @@ async def scan_endpoint(
     # 4. RUN GROK (The Cost)
     result = await analyze_text(text_to_analyze, title=title)
 
-    # 5. SAVE TO CACHE (Canonical URL)
+    # 5. GEO-INTEL: Convert origin_location to coordinates
+    if result.origin_location and result.origin_location != "Global":
+        coords = services.get_coordinates(result.origin_location)
+        if coords:
+            result.coordinates = Coordinates(**coords)
+
+    # 6. SAVE TO CACHE (Canonical URL)
     # Save using the stable canonical URL as key
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
+
+    # 7. LOG NEW SCAN EVENT (Background - the Firehose)
+    background_tasks.add_task(
+        services.log_scan_event,
+        x_user_id,
+        payload.url,
+        result.ani_score,
+        "NEW_SCAN",
+        result.origin_location,
+        headers_dict
+    )
 
     return result
 

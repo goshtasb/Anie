@@ -5,10 +5,18 @@ export interface VectorAnalysis {
   issues: string[];
 }
 
+// Geo-Intel Types
+export interface Coordinates {
+  lat: number;
+  lon: number;
+}
+
 export interface ScanResult {
   ani_score: number;
   verdict: string;
   summary: string;
+  origin_location?: string;  // Geopolitical origin: "Moscow, Russia", "Washington, DC", "Global"
+  coordinates?: Coordinates; // GPS coordinates for map visualization
   vectors?: {
     reality_anchoring?: VectorAnalysis;
     tribal_engineering?: VectorAnalysis;

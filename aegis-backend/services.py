@@ -3,9 +3,14 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from supabase import create_client, Client
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# --- GEO-INTEL: Initialize Geocoder ---
+geolocator = Nominatim(user_agent="acuity_engine_v1", timeout=3)
 
 # Cache TTL: 24 hours (stories evolve, search indices update)
 CACHE_TTL_HOURS = 24
@@ -148,3 +153,83 @@ def clear_cache(url: str) -> bool:
     except Exception as e:
         print(f"Cache Clear Error: {e}")
         return False
+
+
+# --- DATA EXHAUST: Event Ledger ---
+def log_scan_event(user_id: str, url: str, score: int, action: str, origin_location: str, request_headers: dict):
+    """
+    Fire-and-forget logger for the 'Firehose' table.
+    Captures EVERY interaction (cache hits + new scans) for analytics/B2B data.
+
+    This is the "Turnstile" - we count every body that walks through,
+    even if they're reading the same article.
+    """
+    if not supabase:
+        return
+
+    try:
+        # Extract analytics from headers (Cloudflare/Render headers)
+        country = request_headers.get('cf-ipcountry', 'Unknown')
+        user_agent = request_headers.get('user-agent', 'Unknown')
+
+        # Determine device type from user agent
+        ua_lower = user_agent.lower()
+        if 'mobile' in ua_lower or 'android' in ua_lower or 'iphone' in ua_lower:
+            device_type = 'mobile'
+        elif 'extension' in ua_lower or 'chrome' in ua_lower:
+            device_type = 'extension'
+        else:
+            device_type = 'web'
+
+        supabase.table("scan_events").insert({
+            "user_id": user_id or "anonymous",
+            "url": url,
+            "ani_score": score,
+            "action_type": action,
+            "origin_location": origin_location,
+            "geo_country": country,
+            "device_type": device_type,
+            "meta": {"user_agent": user_agent[:500]}  # Truncate to avoid bloat
+        }).execute()
+        # Silent success - no print to keep logs clean
+    except Exception as e:
+        # Silent fail - don't block the user for analytics
+        print(f"⚠️ Event Log Error (non-blocking): {e}")
+
+
+# --- GEO-INTEL: Geocoding Service ---
+def get_coordinates(location_name: str) -> dict | None:
+    """
+    Converts a city/region name to GPS coordinates using OpenStreetMap (Nominatim).
+    Returns {"lat": float, "lon": float} or None if location is Global/unknown.
+    """
+    if not location_name:
+        return None
+
+    # Skip generic/diffuse locations
+    skip_locations = ["global", "unknown", "internet", "online", "worldwide", "n/a", "various"]
+    if location_name.lower().strip() in skip_locations:
+        print(f"🌐 Geo-Intel: '{location_name}' is diffuse, skipping geocode")
+        return None
+
+    try:
+        print(f"🗺️ Geo-Intel: Geocoding '{location_name}'...")
+        location = geolocator.geocode(location_name)
+
+        if location:
+            coords = {"lat": location.latitude, "lon": location.longitude}
+            print(f"📍 Geo-Intel: '{location_name}' -> {coords['lat']:.2f}, {coords['lon']:.2f}")
+            return coords
+        else:
+            print(f"⚠️ Geo-Intel: Could not find coordinates for '{location_name}'")
+            return None
+
+    except GeocoderTimedOut:
+        print(f"⏱️ Geo-Intel: Timeout geocoding '{location_name}'")
+        return None
+    except GeocoderServiceError as e:
+        print(f"❌ Geo-Intel: Service error - {e}")
+        return None
+    except Exception as e:
+        print(f"❌ Geo-Intel: Unexpected error - {e}")
+        return None
