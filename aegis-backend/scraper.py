@@ -73,12 +73,17 @@ def extract_from_json_ld(soup: BeautifulSoup) -> tuple[str, str]:
     """
     try:
         # Find all JSON-LD script tags
-        for script in soup.find_all('script', type='application/ld+json'):
+        json_ld_scripts = soup.find_all('script', type='application/ld+json')
+        print(f"🔍 Found {len(json_ld_scripts)} JSON-LD scripts")
+
+        for i, script in enumerate(json_ld_scripts):
             try:
                 # Get the text content - script.string may be a Script object
                 script_text = script.get_text() if hasattr(script, 'get_text') else str(script.string)
                 if not script_text:
+                    print(f"  Script {i}: empty text")
                     continue
+                print(f"  Script {i}: {len(script_text)} chars, starts with: {script_text[:50]}...")
                 data = json.loads(script_text)
 
                 # Handle arrays of objects
@@ -246,6 +251,7 @@ async def scrape_article(url: str) -> dict:
 
             if response.status_code == 200:
                 html = response.text
+                print(f"📄 Received {len(html)} chars of HTML")
             elif response.status_code in [401, 403, 429]:
                 # BLOCKED! Try the archive backdoor
                 print(f"⚠️ Direct access blocked ({response.status_code}). Trying archives...")
