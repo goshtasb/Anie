@@ -75,7 +75,11 @@ def extract_from_json_ld(soup: BeautifulSoup) -> tuple[str, str]:
         # Find all JSON-LD script tags
         for script in soup.find_all('script', type='application/ld+json'):
             try:
-                data = json.loads(script.string)
+                # Get the text content - script.string may be a Script object
+                script_text = script.get_text() if hasattr(script, 'get_text') else str(script.string)
+                if not script_text:
+                    continue
+                data = json.loads(script_text)
 
                 # Handle arrays of objects
                 if isinstance(data, list):

@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.27"  # JSON-LD extraction for JS-heavy sites (CNN, etc)
+API_VERSION = "1.0.28"  # Fixed JSON-LD extraction (use get_text() not .string)
 
 @app.get("/")
 def health_check():
