@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.42"  # V4.0 Data Exhaust: Event Ledger for B2B Analytics
+API_VERSION = "1.0.43"  # V3.8 Dossier Voice: Forensic Analysis Upgrade
 
 @app.get("/")
 def health_check():
