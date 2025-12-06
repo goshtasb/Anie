@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.32"  # Content-type awareness - don't penalize marketing for being persuasive
+API_VERSION = "1.0.33"  # V3.4 Context-Aware prompt with Commercial Immunity
 
 @app.get("/")
 def health_check():
