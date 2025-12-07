@@ -1,40 +1,53 @@
-import { MMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScanHistoryItem } from '../types';
-
-const storage = new MMKV();
 
 const HISTORY_KEY = 'scan_history';
 const MAX_HISTORY_ITEMS = 50;
 
-export function getScanHistory(): ScanHistoryItem[] {
-  const data = storage.getString(HISTORY_KEY);
-  if (!data) return [];
+// In-memory cache for synchronous access
+let historyCache: ScanHistoryItem[] = [];
+let initialized = false;
+
+// Initialize cache from AsyncStorage
+async function initCache(): Promise<void> {
+  if (initialized) return;
   try {
-    return JSON.parse(data);
+    const data = await AsyncStorage.getItem(HISTORY_KEY);
+    if (data) {
+      historyCache = JSON.parse(data);
+    }
+    initialized = true;
   } catch {
-    return [];
+    historyCache = [];
+    initialized = true;
   }
 }
 
-export function addToHistory(item: ScanHistoryItem): void {
-  const history = getScanHistory();
+// Call this early in app startup
+initCache();
 
+export function getScanHistory(): ScanHistoryItem[] {
+  return historyCache;
+}
+
+export function addToHistory(item: ScanHistoryItem): void {
   // Remove duplicate if exists
-  const filtered = history.filter(h => h.url !== item.url);
+  const filtered = historyCache.filter(h => h.url !== item.url);
 
   // Add new item at the beginning
-  const updated = [item, ...filtered].slice(0, MAX_HISTORY_ITEMS);
+  historyCache = [item, ...filtered].slice(0, MAX_HISTORY_ITEMS);
 
-  storage.set(HISTORY_KEY, JSON.stringify(updated));
+  // Persist async (fire and forget)
+  AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(historyCache)).catch(() => {});
 }
 
 export function clearHistory(): void {
-  storage.delete(HISTORY_KEY);
+  historyCache = [];
+  AsyncStorage.removeItem(HISTORY_KEY).catch(() => {});
 }
 
 export function getHistoryItem(id: string): ScanHistoryItem | undefined {
-  const history = getScanHistory();
-  return history.find(item => item.id === id);
+  return historyCache.find(item => item.id === id);
 }
 
 export function generateId(): string {

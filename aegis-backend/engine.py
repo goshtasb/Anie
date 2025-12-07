@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V3.8 "The Dossier" (Forensic Voice Upgrade)
+# engine.py - Acuity A.N.I.E. Engine V3.9 "The Geopolitical Exception" (Context-Aware Scoring)
 import os
 import json
 import asyncio
@@ -41,7 +41,7 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.8 prompt - The Dossier (Forensic Voice Upgrade)."""
+    """Generate the Psyop Hunter V3.9 prompt - The Geopolitical Exception (Context-Aware Scoring)."""
     return f"""
 <system_role>
 You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
@@ -70,19 +70,41 @@ Analyze these 3 vectors. Assign a score (0-100) to each.
 - Does it omit context to frame a narrative? (e.g., "Trump strikes boats" without mentioning "Boats were firing first")
 - Does it cherry-pick history to create a villain?
 - **If context is omitted to frame one side negatively: Score < 50**
+- **EXCEPTION:** Anonymous intelligence sources are STANDARD in espionage/national security reporting. Do NOT penalize articles for citing "intelligence officials" or "sources familiar with" when the topic is classified operations, spycraft, or military intelligence.
 
 **2. TRIBAL ENGINEERING:**
 - Does it frame specific policies as "Moral/Good" vs "Evil/Bad"?
 - Does it imply that "Sensible people" oppose this?
 - Does it use loaded adjectives (aggressive, dangerous, extreme, radical, controversial)?
 - **Score < 50 for ANY Moral Framing or Adjective Weaponization in News**
+- **GEOPOLITICAL EXCEPTION:** Articles about WAR, ESPIONAGE, or INTERNATIONAL CONFLICT will naturally contain "Us vs. Them" language. Do NOT penalize "Tribal Engineering" if the tribalism describes STATE ACTORS (nations, governments, militaries, intelligence agencies) rather than SOCIAL GROUPS (races, religions, political parties, demographics). Nation-state adversarial framing is factual geopolitics, not tribal manipulation.
 
 **3. NEURO-LINGUISTIC INTENT:**
 - Does the headline/lead guide the reader's conclusion BEFORE presenting evidence?
 - Does it use fear, anger, or outrage as the hook?
 - Does it tell you what to DO or FEEL rather than just report?
 - **Score < 40 for Guided Conclusions or Emotional Priming**
+- **GEOPOLITICAL EXCEPTION:** Words like "spy," "plot," "infiltrate," "recruit," "co-opt," "attack," and "scheme" are NEUTRAL VOCABULARY in intelligence/military context. These are technical terms, not emotional manipulation. Do NOT flag espionage terminology as "High Arousal Language" when reporting on actual espionage activities.
 </step_2_vector_analysis>
+
+<geopolitical_calibration>
+**CRITICAL DISTINCTION - REPORTING ON vs. SPREADING:**
+- "Reporting on a conspiracy" (e.g., "Russian spies infiltrated US institutions") is JOURNALISM
+- "Spreading a conspiracy" (e.g., "Secret elites control the world") is MANIPULATION
+
+**ASK YOURSELF:**
+1. Is this article DOCUMENTING state actor activities backed by named investigations, court filings, or official statements?
+2. Or is it INVENTING shadowy forces without verifiable institutional sources?
+
+If the former: Apply Geopolitical Exception. Espionage reporting should score 70-90 if factually grounded.
+If the latter: Apply full Psyop scrutiny. Conspiracy peddling should score < 40.
+
+**EXAMPLES:**
+- "FBI arrests Russian national on espionage charges" → JOURNALISM (score 80-95)
+- "Deep state controls everything behind the scenes" → MANIPULATION (score 20-35)
+- "Intelligence officials say China recruited US academics" → JOURNALISM (score 70-85)
+- "They want you to think this is normal" → MANIPULATION (score 30-45)
+</geopolitical_calibration>
 
 <step_3_the_iron_fist_scoring_algorithm>
 **CRITICAL MATHEMATICAL INSTRUCTION:** Do NOT average the vector scores.

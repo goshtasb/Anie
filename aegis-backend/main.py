@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.43"  # V3.8 Dossier Voice: Forensic Analysis Upgrade
+API_VERSION = "1.0.44"  # V3.9 Geopolitical Exception: Context-Aware Scoring
 
 @app.get("/")
 def health_check():
