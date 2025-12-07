@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.50"  # V4.2 Senior Analyst: Evidence-First Chat Persona
+API_VERSION = "1.0.51"  # V4.6 Full Spectrum NCI: 20-Point Forensic Checklist
 
 @app.get("/")
 def health_check():
