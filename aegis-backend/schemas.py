@@ -3,13 +3,33 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 
 
-# --- INPUT MODEL ---
+# --- INPUT MODELS ---
 class ScanRequest(BaseModel):
     url: str
     text: str = Field(default="", max_length=15000, description="Truncated article text")
     title: Optional[str] = None
     domain: Optional[str] = None
     device_id: Optional[str] = None  # Guest mode identifier
+
+
+class ChatRequest(BaseModel):
+    """Interrogation Mode: Follow-up questions about a scanned article."""
+    text: str = Field(..., max_length=15000, description="The article text being discussed")
+    analysis_context: str = Field(..., description="The summary/verdict from the scan")
+    question: str = Field(..., max_length=500, description="User's follow-up question")
+    conversation_history: Optional[List[Dict[str, str]]] = Field(
+        default=None,
+        description="Previous Q&A pairs for multi-turn conversations"
+    )
+
+
+class ChatResponse(BaseModel):
+    """Response from Interrogation Mode."""
+    reply: str = Field(..., description="Anie's forensic response")
+    suggested_followups: Optional[List[str]] = Field(
+        default=None,
+        description="Suggested follow-up questions for the user"
+    )
 
 
 # --- OUTPUT MODELS (The Dossier) ---

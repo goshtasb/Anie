@@ -2,8 +2,8 @@
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from schemas import ScanRequest, ANIResponse
-from engine import analyze_text
+from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse
+from engine import analyze_text, client, MODEL
 import services
 from scraper import scrape_article
 import uvicorn
@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.48"  # V4.0 Logical Integrity: 4-Vector Forensic Analysis
+API_VERSION = "1.0.49"  # V4.1 Interrogation Mode: Follow-up Q&A
 
 @app.get("/")
 def health_check():
@@ -152,6 +152,98 @@ async def scan_endpoint(
     )
 
     return result
+
+
+# ============================================================
+# INTERROGATION MODE: Follow-up Q&A about scanned articles
+# ============================================================
+
+INTERROGATION_PROMPT = """You are Anie (Acuity Narrative Integrity Engine), a forensic news analyst.
+The user has scanned an article and received your analysis. Now they have follow-up questions.
+
+**YOUR IDENTITY:**
+- You are a clinical, forensic intelligence analyst
+- You speak in short, precise sentences
+- You cite specific text from the article when making claims
+- You maintain the "Dossier" tone - professional, unemotional, factual
+
+**STRICT RULES:**
+1. ONLY answer questions about the provided article text
+2. If asked about unrelated topics (weather, jokes, coding help), respond: "I am a forensic news analyst. I can only discuss the article you've scanned."
+3. If the user challenges your score, quote the EXACT phrases that triggered flags
+4. Keep responses under 150 words unless the user asks for detail
+5. If asked "explain the score" or similar, walk through each vector briefly
+
+**TONE CALIBRATION:**
+- Do NOT be preachy or lecture the user
+- Do NOT say "It's important to..." or "You should be aware..."
+- Be direct: "The article does X. This is problematic because Y."
+"""
+
+
+@app.post("/v1/chat", response_model=ChatResponse)
+async def chat_endpoint(
+    payload: ChatRequest,
+    x_user_id: str = Header(None, alias="X-User-ID")
+):
+    """
+    Interrogation Mode: Answer follow-up questions about a scanned article.
+    Maintains forensic tone and refuses off-topic queries.
+    """
+    print(f"💬 Interrogation Mode: {payload.question[:50]}...")
+
+    # Build conversation messages
+    messages = [
+        {"role": "system", "content": INTERROGATION_PROMPT}
+    ]
+
+    # Add conversation history if provided (multi-turn)
+    if payload.conversation_history:
+        for turn in payload.conversation_history[-4:]:  # Limit to last 4 turns
+            messages.append({"role": "user", "content": turn.get("question", "")})
+            messages.append({"role": "assistant", "content": turn.get("reply", "")})
+
+    # Add the current context and question
+    user_message = f"""**ARTICLE TEXT:**
+{payload.text[:6000]}
+
+**MY PREVIOUS ANALYSIS:**
+{payload.analysis_context}
+
+**USER QUESTION:**
+{payload.question}"""
+
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        completion = await client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=500
+        )
+
+        reply = completion.choices[0].message.content
+
+        # Generate suggested follow-ups based on the question type
+        suggested = None
+        question_lower = payload.question.lower()
+        if "score" in question_lower or "why" in question_lower:
+            suggested = ["What specific phrases triggered flags?", "Is this article biased?"]
+        elif "source" in question_lower or "fact" in question_lower:
+            suggested = ["Were any claims unverifiable?", "What's the origin of this narrative?"]
+        elif not payload.conversation_history:  # First question
+            suggested = ["Explain the score", "What manipulation tactics are used?", "Is this satire?"]
+
+        return ChatResponse(reply=reply, suggested_followups=suggested)
+
+    except Exception as e:
+        print(f"❌ Interrogation Error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Analysis conversation failed. Please try again."
+        )
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8010)
