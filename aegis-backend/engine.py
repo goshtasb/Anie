@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V3.10 "The Lifestyle Exception" (Context-Aware Scoring)
+# engine.py - Acuity A.N.I.E. Engine V3.11 "The Trojan Horse Detector" (Lifestyle with Kill Switch)
 import os
 import json
 import asyncio
@@ -41,7 +41,7 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.10 prompt - The Lifestyle Exception (Context-Aware Scoring)."""
+    """Generate the Psyop Hunter V3.11 prompt - The Trojan Horse Detector (Lifestyle with Kill Switch)."""
     return f"""
 <system_role>
 You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
@@ -62,11 +62,19 @@ Truth Context: {search_context}
 **IF COMMERCIAL:** Leniency on tone (90-100 unless fraud).
 **IF OPINION:** Leniency on bias (60-80 unless false claims).
 **IF LIFESTYLE/CULTURE (Food, Travel, Art, Entertainment, Music, Movies, Fashion):**
-- **Status:** SUBJECTIVE ALLOWANCE - this is entertainment, not news.
-- **Tone:** High-arousal adjectives ("Best," "Mind-blowing," "Hidden gem," "Must-try") are STANDARD GENRE CONVENTIONS.
-- **Rule:** Do NOT penalize Neuro-Linguistic Intent for positive hype or superlatives. Enthusiasm is expected.
-- **Only Penalize:** If the article uses FEAR ("This food will kill you"), POLITICAL TRIBALISM ("Only liberals eat here"), or HIDDEN SPONSORSHIP (undisclosed paid promotion).
+- **Status:** SENSORY ALLOWANCE (Conditional) - entertainment gets leniency, but with a kill switch.
+- **Tone:** High-arousal adjectives ("Best," "Mind-blowing," "Hidden gem," "Must-try") are PERMITTED if they describe SENSORY EXPERIENCE (taste, sound, visuals, atmosphere).
 - **Base Score:** 85-95 for honest lifestyle content.
+
+**THE TROJAN HORSE CHECK (CRITICAL - LIFESTYLE KILL SWITCH):**
+- Does the article PIVOT from sensory description to political/social commentary?
+- **Red Flags:** Mentioning "Woke," "Traditional Values," "Globalist," "Patriot," "The West," "Liberals," "Conservatives," or injecting geopolitical conflicts into food/travel/art reviews.
+- **Examples:**
+  - "This steak is delicious and perfectly seared" = **Score 95** (Pure sensory)
+  - "Eating this steak reclaims masculinity from weak liberals" = **Score 20** (Trojan Horse - tribal engineering hidden in lifestyle)
+  - "This traditional bakery proves the nuclear family is the only way" = **Score 25** (Ideology injection)
+  - "Visit this country before the globalists ruin it" = **Score 30** (Political pivot in travel content)
+- **Action:** If a Trojan Horse is detected, IMMEDIATELY REVOKE lifestyle leniency and apply STRICT NEWS SCRUTINY. The content is using lifestyle as a delivery mechanism for ideology.
 </step_1_classification>
 
 <step_2_vector_analysis>

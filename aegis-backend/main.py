@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.45"  # V3.10 Lifestyle Exception: Food/Travel/Entertainment Leniency
+API_VERSION = "1.0.46"  # V3.11 Trojan Horse Detector: Lifestyle with Kill Switch
 
 @app.get("/")
 def health_check():
