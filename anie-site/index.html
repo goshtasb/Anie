@@ -231,12 +231,12 @@
                 </p>
             `;
 
-            // Cycle messages every 2.5 seconds (slower feels more deliberate)
+            // Cycle messages every 5 seconds (covers 60s without looping)
             const loadingInterval = setInterval(() => {
                 msgIndex = (msgIndex + 1) % loadingMessages.length;
                 const loader = resultDiv.querySelector('.loader');
                 if (loader) loader.textContent = loadingMessages[msgIndex];
-            }, 2500);
+            }, 5000);
 
             try {
                 const response = await fetch(API_URL, {
