@@ -111,6 +111,33 @@ h1 {
     font-family: var(--font-display);
 }
 
+/* Live Status Ticker */
+.status-pill {
+    margin-top: 2rem;
+    padding: 0.6rem 1.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50px;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    display: inline-block;
+    transition: all 0.5s ease;
+}
+
+.live-dot {
+    animation: ticker-pulse 2s infinite;
+    margin-right: 8px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+@keyframes ticker-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
 /* WEB SCANNER UI */
 .web-scanner {
     background: rgba(255,255,255,0.05);

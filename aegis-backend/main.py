@@ -1,4 +1,5 @@
 # main.py
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import ScanRequest, ANIResponse
@@ -18,11 +19,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.46"  # V3.11 Trojan Horse Detector: Lifestyle with Kill Switch
+API_VERSION = "1.0.47"  # V3.12 War Room Ticker: Live Stats Endpoint
 
 @app.get("/")
 def health_check():
     return {"status": "Acuity Systems Online (Alpha Mode)", "version": API_VERSION}
+
+
+@app.get("/v1/stats")
+async def get_stats():
+    """
+    Public Endpoint: Returns aggregate system activity for the 'Live Ticker'.
+    Privacy-first: No PII, just counts.
+    """
+    try:
+        if not services.supabase:
+            return {"scans_24h": "---", "scans_total": "---", "status": "OFFLINE"}
+
+        # 1. Count Scans in last 24h (DAU proxy)
+        cutoff_24h = (datetime.now() - timedelta(hours=24)).isoformat()
+        daily_scans = services.supabase.table("scan_events") \
+            .select("*", count="exact", head=True) \
+            .gte("created_at", cutoff_24h) \
+            .execute()
+
+        # 2. Count Total Scans (All time)
+        total_scans = services.supabase.table("scan_events") \
+            .select("*", count="exact", head=True) \
+            .execute()
+
+        return {
+            "scans_24h": daily_scans.count or 0,
+            "scans_total": total_scans.count or 0,
+            "status": "OPERATIONAL"
+        }
+    except Exception as e:
+        print(f"⚠️ Stats endpoint error: {e}")
+        # Graceful fallback if DB is busy
+        return {"scans_24h": "---", "scans_total": "---", "status": "OFFLINE"}
 
 
 @app.delete("/v1/cache/clear")
