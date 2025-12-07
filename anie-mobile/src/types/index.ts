@@ -12,9 +12,10 @@ export interface ScanResult {
   summary: string;
   origin_location?: string;  // Geopolitical origin: "Moscow, Russia", "Washington, DC", "Global"
   vectors?: {
-    reality_anchoring?: VectorAnalysis;
-    tribal_engineering?: VectorAnalysis;
-    neuro_linguistic?: VectorAnalysis;
+    reality?: VectorAnalysis;
+    tribal?: VectorAnalysis;
+    neuro?: VectorAnalysis;
+    logic?: VectorAnalysis;  // V4.0: Logical Integrity - detects Double Binds, False Dilemmas, Agency Deletion
   };
 }
 

@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V3.11 "The Trojan Horse Detector" (Lifestyle with Kill Switch)
+# engine.py - Acuity A.N.I.E. Engine V4.0 "Logical Integrity" (4-Vector Forensic Analysis)
 import os
 import json
 import asyncio
@@ -41,7 +41,7 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.11 prompt - The Trojan Horse Detector (Lifestyle with Kill Switch)."""
+    """Generate the Psyop Hunter V4.0 prompt - 4-Vector Forensic Analysis with Logical Integrity."""
     return f"""
 <system_role>
 You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
@@ -78,27 +78,37 @@ Truth Context: {search_context}
 </step_1_classification>
 
 <step_2_vector_analysis>
-Analyze these 3 vectors. Assign a score (0-100) to each.
+Analyze these 4 vectors. Assign a score (0-100) to each.
 
-**1. REALITY ANCHORING:**
+**1. REALITY ANCHORING (Facts):**
 - Does it omit context to frame a narrative? (e.g., "Trump strikes boats" without mentioning "Boats were firing first")
 - Does it cherry-pick history to create a villain?
 - **If context is omitted to frame one side negatively: Score < 50**
 - **EXCEPTION:** Anonymous intelligence sources are STANDARD in espionage/national security reporting. Do NOT penalize articles for citing "intelligence officials" or "sources familiar with" when the topic is classified operations, spycraft, or military intelligence.
 
-**2. TRIBAL ENGINEERING:**
+**2. TRIBAL ENGINEERING (Identity):**
 - Does it frame specific policies as "Moral/Good" vs "Evil/Bad"?
 - Does it imply that "Sensible people" oppose this?
 - Does it use loaded adjectives (aggressive, dangerous, extreme, radical, controversial)?
 - **Score < 50 for ANY Moral Framing or Adjective Weaponization in News**
 - **GEOPOLITICAL EXCEPTION:** Articles about WAR, ESPIONAGE, or INTERNATIONAL CONFLICT will naturally contain "Us vs. Them" language. Do NOT penalize "Tribal Engineering" if the tribalism describes STATE ACTORS (nations, governments, militaries, intelligence agencies) rather than SOCIAL GROUPS (races, religions, political parties, demographics). Nation-state adversarial framing is factual geopolitics, not tribal manipulation.
 
-**3. NEURO-LINGUISTIC INTENT:**
+**3. NEURO-LINGUISTIC INTENT (Emotion):**
 - Does the headline/lead guide the reader's conclusion BEFORE presenting evidence?
 - Does it use fear, anger, or outrage as the hook?
 - Does it tell you what to DO or FEEL rather than just report?
 - **Score < 40 for Guided Conclusions or Emotional Priming**
 - **GEOPOLITICAL EXCEPTION:** Words like "spy," "plot," "infiltrate," "recruit," "co-opt," "attack," and "scheme" are NEUTRAL VOCABULARY in intelligence/military context. These are technical terms, not emotional manipulation. Do NOT flag espionage terminology as "High Arousal Language" when reporting on actual espionage activities.
+
+**4. LOGICAL INTEGRITY (Structure):**
+- *Target:* Detects NCI-specific manipulation structures that bypass critical thinking.
+- **The Double Bind:** Does the text offer two choices that BOTH lead to the manipulator's desired outcome? (e.g., "Either you agree, or you're part of the problem")
+- **The False Dilemma:** Does it present a complex issue as a binary "Good vs. Evil" choice with no middle ground?
+- **Agency Deletion:** Does the text use Passive Voice ("shots were fired," "mistakes were made") to hide the perpetrator in a way that biases the narrative?
+- **Circular Logic:** Does a claim's "evidence" simply restate the claim? (e.g., "This is dangerous because it poses a danger")
+- **Moving the Goalposts:** Does the article shift criteria mid-argument to maintain a conclusion?
+- **Score < 50 for ANY logical fallacy or agency deletion tactic that biases the narrative**
+- **Score < 30 for Double Bind manipulation (the most coercive structure)**
 </step_2_vector_analysis>
 
 <geopolitical_calibration>
@@ -121,15 +131,16 @@ If the latter: Apply full Psyop scrutiny. Conspiracy peddling should score < 40.
 </geopolitical_calibration>
 
 <step_3_the_iron_fist_scoring_algorithm>
-**CRITICAL MATHEMATICAL INSTRUCTION:** Do NOT average the vector scores.
+**CRITICAL MATHEMATICAL INSTRUCTION:** Do NOT average the 4 vector scores.
 
 **THE WEAKEST LINK RULE:**
 The Final ANI Score **MUST NOT** exceed the *lowest* Vector Score by more than 5 points.
 
-**EXAMPLES:**
-- Reality(90) + Tribal(40) + Intent(80) = **Final Score = 45 MAX**
-- Reality(85) + Tribal(65) + Intent(70) = **Final Score = 70 MAX**
-- Reality(50) + Tribal(50) + Intent(50) = **Final Score = 50 MAX**
+**EXAMPLES (4 VECTORS):**
+- Reality(90) + Tribal(40) + Intent(80) + Logic(85) = **Final Score = 45 MAX** (Tribal is weakest)
+- Reality(85) + Tribal(65) + Intent(70) + Logic(60) = **Final Score = 65 MAX** (Logic is weakest)
+- Reality(50) + Tribal(50) + Intent(50) + Logic(50) = **Final Score = 50 MAX**
+- Reality(95) + Tribal(90) + Intent(85) + Logic(30) = **Final Score = 35 MAX** (Double Bind detected)
 
 **LOGIC:** A poisonous apple with shiny skin is still poisonous. If ANY vector is corrupted, the whole article is corrupted.
 
@@ -162,7 +173,7 @@ Use this forensic structure for EVERY analysis field:
 Return valid JSON only. Fill "thinking_process" FIRST.
 
 {{
-  "thinking_process": "1. Classify content. 2. Analyze each vector. 3. Identify LOWEST vector score. 4. Set Final Score = LOWEST + 5 max.",
+  "thinking_process": "1. Classify content. 2. Analyze all 4 vectors. 3. Identify LOWEST vector score. 4. Set Final Score = LOWEST + 5 max.",
   "content_type": "One of: [commercial, news, opinion]",
   "ani_score": INTEGER,
   "verdict": "One of: [Organic, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
@@ -183,6 +194,11 @@ Return valid JSON only. Fill "thinking_process" FIRST.
       "score": INTEGER,
       "flags": ["EXACT QUOTE if problematic, else empty array"],
       "analysis": "**The Flag:** [Tactic Name]. **Analysis:** [Forensic explanation of HOW and WHY]"
+    }},
+    "logical_integrity": {{
+      "score": INTEGER,
+      "flags": ["EXACT QUOTE if problematic, else empty array"],
+      "analysis": "**The Flag:** [Fallacy Name - e.g., 'Double Bind', 'False Dilemma', 'Agency Deletion']. **Analysis:** [Explain the logical structure and how it coerces the reader]"
     }}
   }}
 }}
@@ -446,7 +462,8 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                 vector_mapping = {
                     "reality_anchoring": "reality",
                     "tribal_engineering": "tribal",
-                    "neuro_linguistic": "neuro"
+                    "neuro_linguistic": "neuro",
+                    "logical_integrity": "logic"
                 }
 
                 vector_scores = []
@@ -538,7 +555,8 @@ async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIR
         vector_mapping = {
             "reality_anchoring": "reality",
             "tribal_engineering": "tribal",
-            "neuro_linguistic": "neuro"
+            "neuro_linguistic": "neuro",
+            "logical_integrity": "logic"
         }
 
         for api_key, ui_key in vector_mapping.items():
@@ -572,7 +590,8 @@ def _fallback_response(error_msg: str) -> ANIResponse:
         vectors={
             "reality": VectorScore(score=50, flags=[], analysis="Analysis unavailable"),
             "tribal": VectorScore(score=50, flags=[], analysis="Analysis unavailable"),
-            "neuro": VectorScore(score=50, flags=[], analysis="Analysis unavailable")
+            "neuro": VectorScore(score=50, flags=[], analysis="Analysis unavailable"),
+            "logic": VectorScore(score=50, flags=[], analysis="Analysis unavailable")
         },
         fact_check=None
     )

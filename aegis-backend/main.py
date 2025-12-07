@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.47"  # V3.12 War Room Ticker: Live Stats Endpoint
+API_VERSION = "1.0.48"  # V4.0 Logical Integrity: 4-Vector Forensic Analysis
 
 @app.get("/")
 def health_check():
