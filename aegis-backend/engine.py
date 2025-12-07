@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V3.9 "The Geopolitical Exception" (Context-Aware Scoring)
+# engine.py - Acuity A.N.I.E. Engine V3.10 "The Lifestyle Exception" (Context-Aware Scoring)
 import os
 import json
 import asyncio
@@ -41,7 +41,7 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V3.9 prompt - The Geopolitical Exception (Context-Aware Scoring)."""
+    """Generate the Psyop Hunter V3.10 prompt - The Lifestyle Exception (Context-Aware Scoring)."""
     return f"""
 <system_role>
 You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
@@ -61,6 +61,12 @@ Truth Context: {search_context}
 **IF NEWS/JOURNALISM:** Apply STRICT SCRUTINY. Adjectives are enemies. Framing is a weapon.
 **IF COMMERCIAL:** Leniency on tone (90-100 unless fraud).
 **IF OPINION:** Leniency on bias (60-80 unless false claims).
+**IF LIFESTYLE/CULTURE (Food, Travel, Art, Entertainment, Music, Movies, Fashion):**
+- **Status:** SUBJECTIVE ALLOWANCE - this is entertainment, not news.
+- **Tone:** High-arousal adjectives ("Best," "Mind-blowing," "Hidden gem," "Must-try") are STANDARD GENRE CONVENTIONS.
+- **Rule:** Do NOT penalize Neuro-Linguistic Intent for positive hype or superlatives. Enthusiasm is expected.
+- **Only Penalize:** If the article uses FEAR ("This food will kill you"), POLITICAL TRIBALISM ("Only liberals eat here"), or HIDDEN SPONSORSHIP (undisclosed paid promotion).
+- **Base Score:** 85-95 for honest lifestyle content.
 </step_1_classification>
 
 <step_2_vector_analysis>

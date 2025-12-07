@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.44"  # V3.9 Geopolitical Exception: Context-Aware Scoring
+API_VERSION = "1.0.45"  # V3.10 Lifestyle Exception: Food/Travel/Entertainment Leniency
 
 @app.get("/")
 def health_check():
