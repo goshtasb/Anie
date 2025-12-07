@@ -187,16 +187,20 @@
         let currentAnalysis = '';
         let conversationHistory = [];
 
-        // Status Cycler - Forensic stages for psychological speed
+        // EXPANDED STATUS MESSAGES (The "Forensic Journey" - covers ~30s without looping)
         const loadingMessages = [
-            'Initializing Neural Handshake...',
-            'Deploying Swarm Search...',
-            'Intercepting Narrative Vectors...',
-            'Cross-Referencing Reality...',
-            'Detecting Tribal Engineering...',
-            'Analyzing Neuro-Linguistic Patterns...',
-            'Checking Logical Integrity...',
-            'Finalizing Forensic Dossier...'
+            'Establishing Secure Uplink...',
+            'Surgically Extracting Text Content...',
+            'Filtering Ad-Tech & Tracking Noise...',
+            'Deploying Swarm Search Agents...',
+            'Cross-Referencing Reality Anchors...',
+            'Scanning for Zombie Facts...',
+            'Analyzing Tribal Engineering Patterns...',
+            'Measuring Neuro-Linguistic Intent...',
+            'Detecting Emotional Coercion...',
+            'Verifying Geopolitical Context...',
+            'Deep Logic Scan in Progress...',
+            'Compiling Forensic Dossier...'
         ];
 
         scanBtn.addEventListener('click', async () => {
@@ -220,13 +224,19 @@
             scanBtn.textContent = 'SCANNING...';
 
             let msgIndex = 0;
-            resultDiv.innerHTML = `<div class="loader">${loadingMessages[0]}</div>`;
+            resultDiv.innerHTML = `
+                <div class="loader">${loadingMessages[0]}</div>
+                <p class="loading-disclaimer">
+                    (Deep forensic analysis requires real-time AI processing. Please allow up to 60 seconds.)
+                </p>
+            `;
 
+            // Cycle messages every 2.5 seconds (slower feels more deliberate)
             const loadingInterval = setInterval(() => {
                 msgIndex = (msgIndex + 1) % loadingMessages.length;
                 const loader = resultDiv.querySelector('.loader');
                 if (loader) loader.textContent = loadingMessages[msgIndex];
-            }, 1500);
+            }, 2500);
 
             try {
                 const response = await fetch(API_URL, {
