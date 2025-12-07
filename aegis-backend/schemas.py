@@ -6,7 +6,7 @@ from typing import List, Optional, Dict
 # --- INPUT MODELS ---
 class ScanRequest(BaseModel):
     url: str
-    text: str = Field(default="", max_length=15000, description="Truncated article text")
+    text: str = Field(default="", max_length=8000, description="Truncated article text (8k chars max for speed)")
     title: Optional[str] = None
     domain: Optional[str] = None
     device_id: Optional[str] = None  # Guest mode identifier
@@ -14,7 +14,7 @@ class ScanRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     """Interrogation Mode: Follow-up questions about a scanned article."""
-    text: str = Field(..., max_length=15000, description="The article text being discussed")
+    text: str = Field(..., max_length=8000, description="The article text being discussed (8k chars max)")
     analysis_context: str = Field(..., description="The summary/verdict from the scan")
     question: str = Field(..., max_length=500, description="User's follow-up question")
     conversation_history: Optional[List[Dict[str, str]]] = Field(
