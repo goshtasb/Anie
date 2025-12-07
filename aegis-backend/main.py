@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from schemas import ScanRequest, ANIResponse, Coordinates
+from schemas import ScanRequest, ANIResponse
 from engine import analyze_text
 import services
 from scraper import scrape_article
@@ -102,17 +102,11 @@ async def scan_endpoint(
     # 4. RUN GROK (The Cost)
     result = await analyze_text(text_to_analyze, title=title)
 
-    # 5. GEO-INTEL: Convert origin_location to coordinates
-    if result.origin_location and result.origin_location != "Global":
-        coords = services.get_coordinates(result.origin_location)
-        if coords:
-            result.coordinates = Coordinates(**coords)
-
-    # 6. SAVE TO CACHE (Canonical URL)
+    # 5. SAVE TO CACHE (Canonical URL)
     # Save using the stable canonical URL as key
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
 
-    # 7. LOG NEW SCAN EVENT (Background - the Firehose)
+    # 6. LOG NEW SCAN EVENT (Background - the Firehose)
     background_tasks.add_task(
         services.log_scan_event,
         x_user_id,

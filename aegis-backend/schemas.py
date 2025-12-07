@@ -12,12 +12,6 @@ class ScanRequest(BaseModel):
     device_id: Optional[str] = None  # Guest mode identifier
 
 
-# --- GEO-INTEL MODELS ---
-class Coordinates(BaseModel):
-    lat: float
-    lon: float
-
-
 # --- OUTPUT MODELS (The Dossier) ---
 class VectorScore(BaseModel):
     score: int = Field(..., ge=0, le=100, description="0-100 score for this vector")
@@ -39,7 +33,6 @@ class ANIResponse(BaseModel):
     summary: str = Field(..., description="2-3 sentence summary of findings")
     verdict: str = Field(..., description="Human-readable verdict")
     origin_location: str = Field(default="Global", description="Geopolitical origin of the narrative")
-    coordinates: Optional[Coordinates] = Field(default=None, description="GPS coordinates of origin location")
     vectors: Dict[str, VectorScore] = Field(
         default_factory=dict,
         description="Analysis vectors: authority, emotion, logic, headline"

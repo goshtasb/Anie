@@ -3,14 +3,9 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from supabase import create_client, Client
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# --- GEO-INTEL: Initialize Geocoder ---
-geolocator = Nominatim(user_agent="acuity_engine_v1", timeout=3)
 
 # Cache TTL: 24 hours (stories evolve, search indices update)
 CACHE_TTL_HOURS = 24
@@ -197,39 +192,3 @@ def log_scan_event(user_id: str, url: str, score: int, action: str, origin_locat
         print(f"⚠️ Event Log Error (non-blocking): {e}")
 
 
-# --- GEO-INTEL: Geocoding Service ---
-def get_coordinates(location_name: str) -> dict | None:
-    """
-    Converts a city/region name to GPS coordinates using OpenStreetMap (Nominatim).
-    Returns {"lat": float, "lon": float} or None if location is Global/unknown.
-    """
-    if not location_name:
-        return None
-
-    # Skip generic/diffuse locations
-    skip_locations = ["global", "unknown", "internet", "online", "worldwide", "n/a", "various"]
-    if location_name.lower().strip() in skip_locations:
-        print(f"🌐 Geo-Intel: '{location_name}' is diffuse, skipping geocode")
-        return None
-
-    try:
-        print(f"🗺️ Geo-Intel: Geocoding '{location_name}'...")
-        location = geolocator.geocode(location_name)
-
-        if location:
-            coords = {"lat": location.latitude, "lon": location.longitude}
-            print(f"📍 Geo-Intel: '{location_name}' -> {coords['lat']:.2f}, {coords['lon']:.2f}")
-            return coords
-        else:
-            print(f"⚠️ Geo-Intel: Could not find coordinates for '{location_name}'")
-            return None
-
-    except GeocoderTimedOut:
-        print(f"⏱️ Geo-Intel: Timeout geocoding '{location_name}'")
-        return None
-    except GeocoderServiceError as e:
-        print(f"❌ Geo-Intel: Service error - {e}")
-        return None
-    except Exception as e:
-        print(f"❌ Geo-Intel: Unexpected error - {e}")
-        return None
