@@ -1,14 +1,9 @@
 // API Types
 export interface VectorAnalysis {
   score: number;
-  status: 'pass' | 'flag' | 'fail';
-  issues: string[];
-}
-
-// Geo-Intel Types
-export interface Coordinates {
-  lat: number;
-  lon: number;
+  status?: 'pass' | 'flag' | 'fail';
+  issues?: string[];
+  analysis?: string;  // Forensic analysis text from engine
 }
 
 export interface ScanResult {
@@ -16,7 +11,6 @@ export interface ScanResult {
   verdict: string;
   summary: string;
   origin_location?: string;  // Geopolitical origin: "Moscow, Russia", "Washington, DC", "Global"
-  coordinates?: Coordinates; // GPS coordinates for map visualization
   vectors?: {
     reality_anchoring?: VectorAnalysis;
     tribal_engineering?: VectorAnalysis;

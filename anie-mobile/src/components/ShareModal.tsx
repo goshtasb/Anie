@@ -7,11 +7,8 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
-  Image,
-  ImageBackground,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Colors, ScanResult, Coordinates, getScoreColor, getScoreLabel } from '../types';
+import { Colors, ScanResult, getScoreColor, getScoreLabel } from '../types';
 import { scanUrl, extractDomain, extractUrlFromText, isValidUrl } from '../utils/api';
 import { addToHistory, generateId } from '../utils/storage';
 
@@ -21,26 +18,13 @@ interface ShareModalProps {
   onClose: () => void;
 }
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Mapbox Static Images API - Dark theme
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiYW5pZWFpIiwiYSI6ImNtaXV1NDNxODF4Z2IzdG9iY2dmYjV5eWMifQ.XkJvuy_5Vku3KWqAhszJ-w';
-const MAPBOX_STYLE = 'dark-v11';
-
-function getMapboxStaticUrl(coords: Coordinates, zoom: number = 4): string {
-  // Mapbox Static Images API URL
-  // Format: https://api.mapbox.com/styles/v1/mapbox/{style}/static/{lon},{lat},{zoom}/{width}x{height}@2x?access_token={token}
-  const width = Math.round(SCREEN_WIDTH);
-  const height = Math.round(SCREEN_HEIGHT * 0.6);
-  return `https://api.mapbox.com/styles/v1/mapbox/${MAPBOX_STYLE}/static/${coords.lon},${coords.lat},${zoom},0/${width}x${height}@2x?access_token=${MAPBOX_TOKEN}`;
-}
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [url, setUrl] = useState<string>('');
-  const [mapUrl, setMapUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function analyze() {
@@ -68,11 +52,6 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
         const scanResult = await scanUrl(targetUrl);
         setResult(scanResult);
 
-        // Generate map URL if coordinates are available
-        if (scanResult.coordinates) {
-          setMapUrl(getMapboxStaticUrl(scanResult.coordinates));
-        }
-
         // Save to history
         addToHistory({
           id: generateId(),
@@ -96,135 +75,120 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
   const scoreLabel = result ? getScoreLabel(result.ani_score) : '';
   const hasGeoIntel = result?.origin_location && result.origin_location !== 'Global';
 
-  // Render the main content
-  const renderContent = () => (
-    <>
-      {/* Handle bar */}
-      <View style={styles.handleBar} />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>ACUITY // SCAN</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <Text style={styles.closeText}>CLOSE</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* URL Display */}
-      {url && (
-        <Text style={styles.urlText} numberOfLines={1}>
-          {extractDomain(url)}
-        </Text>
-      )}
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Loading State */}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.accent} />
-            <Text style={styles.loadingText}>Analyzing narrative structure...</Text>
-          </View>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorIcon}>!</Text>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Result State */}
-        {result && (
-          <View style={styles.resultContainer}>
-            {/* Geo-Intel Origin Tag */}
-            {hasGeoIntel && (
-              <View style={styles.geoIntelBadge}>
-                <Text style={styles.geoIntelIcon}>📍</Text>
-                <Text style={styles.geoIntelText}>ORIGIN: {result.origin_location?.toUpperCase()}</Text>
-              </View>
-            )}
-
-            {/* Score */}
-            <View style={styles.scoreSection}>
-              <Text style={[styles.score, { color: scoreColor }]}>
-                {result.ani_score}
-              </Text>
-              <Text style={[styles.scoreLabel, { color: scoreColor }]}>
-                {scoreLabel}
-              </Text>
-            </View>
-
-            {/* Verdict */}
-            <Text style={styles.verdict}>{result.verdict}</Text>
-
-            {/* Summary */}
-            {result.summary && (
-              <Text style={styles.summary}>{result.summary}</Text>
-            )}
-
-            {/* Vector Breakdown */}
-            {result.vectors && (
-              <View style={styles.vectorsSection}>
-                <Text style={styles.vectorsTitle}>FORENSIC BREAKDOWN</Text>
-
-                {result.vectors.reality_anchoring && (
-                  <VectorRow
-                    label="Reality Anchoring"
-                    score={result.vectors.reality_anchoring.score}
-                    issues={result.vectors.reality_anchoring.issues}
-                  />
-                )}
-
-                {result.vectors.tribal_engineering && (
-                  <VectorRow
-                    label="Tribal Engineering"
-                    score={result.vectors.tribal_engineering.score}
-                    issues={result.vectors.tribal_engineering.issues}
-                  />
-                )}
-
-                {result.vectors.neuro_linguistic && (
-                  <VectorRow
-                    label="Neuro-Linguistic"
-                    score={result.vectors.neuro_linguistic.score}
-                    issues={result.vectors.neuro_linguistic.issues}
-                  />
-                )}
-              </View>
-            )}
-          </View>
-        )}
-      </ScrollView>
-    </>
-  );
-
-  // If we have coordinates and a map URL, render with map background
-  if (mapUrl && result?.coordinates) {
-    return (
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-
-        <ImageBackground
-          source={{ uri: mapUrl }}
-          style={styles.mapBackground}
-          imageStyle={styles.mapImage}
-        >
-          <BlurView intensity={80} tint="dark" style={styles.blurCard}>
-            {renderContent()}
-          </BlurView>
-        </ImageBackground>
-      </View>
-    );
-  }
-
-  // Default: No map background (Global origin or no Mapbox token)
   return (
     <View style={styles.overlay}>
       <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
       <View style={styles.modal}>
-        {renderContent()}
+        {/* Handle bar */}
+        <View style={styles.handleBar} />
+
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>ACUITY // SCAN</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeText}>CLOSE</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* URL Display */}
+        {url && (
+          <Text style={styles.urlText} numberOfLines={1}>
+            {extractDomain(url)}
+          </Text>
+        )}
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Loading State */}
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.accent} />
+              <Text style={styles.loadingText}>DECRYPTING NARRATIVE...</Text>
+            </View>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorIcon}>!</Text>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          {/* Result State */}
+          {result && (
+            <View style={styles.resultContainer}>
+              {/* Geo-Intel Origin Tag */}
+              {hasGeoIntel && (
+                <View style={styles.geoIntelBadge}>
+                  <Text style={styles.geoIntelText}>ORIGIN: {result.origin_location?.toUpperCase()}</Text>
+                </View>
+              )}
+
+              {/* Score */}
+              <View style={styles.scoreSection}>
+                <View style={[styles.scoreCircle, { borderColor: scoreColor }]}>
+                  <Text style={[styles.score, { color: scoreColor }]}>
+                    {result.ani_score}
+                  </Text>
+                </View>
+                <Text style={[styles.scoreLabel, { color: scoreColor }]}>
+                  {scoreLabel}
+                </Text>
+              </View>
+
+              {/* Verdict */}
+              <Text style={styles.verdict}>{result.verdict}</Text>
+
+              {/* Summary */}
+              {result.summary && (
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>EXECUTIVE SUMMARY</Text>
+                  <Text style={styles.summary}>{result.summary}</Text>
+                </View>
+              )}
+
+              {/* Vector Breakdown */}
+              {result.vectors && (
+                <View style={styles.vectorsSection}>
+                  <Text style={styles.vectorsTitle}>FORENSIC BREAKDOWN</Text>
+
+                  {result.vectors.reality_anchoring && (
+                    <VectorRow
+                      label="Reality Anchoring"
+                      score={result.vectors.reality_anchoring.score}
+                      analysis={result.vectors.reality_anchoring.analysis}
+                    />
+                  )}
+
+                  {result.vectors.tribal_engineering && (
+                    <VectorRow
+                      label="Tribal Engineering"
+                      score={result.vectors.tribal_engineering.score}
+                      analysis={result.vectors.tribal_engineering.analysis}
+                    />
+                  )}
+
+                  {result.vectors.neuro_linguistic && (
+                    <VectorRow
+                      label="Neuro-Linguistic"
+                      score={result.vectors.neuro_linguistic.score}
+                      analysis={result.vectors.neuro_linguistic.analysis}
+                    />
+                  )}
+                </View>
+              )}
+
+              {/* Close Button */}
+              <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+                <Text style={styles.doneText}>CLOSE DOSSIER</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Bottom spacer */}
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </View>
     </View>
   );
@@ -233,31 +197,26 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
 function VectorRow({
   label,
   score,
-  issues,
+  analysis,
 }: {
   label: string;
   score: number;
-  issues: string[];
+  analysis?: string;
 }) {
   const color = getScoreColor(score);
+  const isIssue = score < 80;
 
   // Only show vectors with issues (score < 80)
-  if (score >= 80) return null;
+  if (!isIssue) return null;
 
   return (
     <View style={styles.vectorRow}>
       <View style={styles.vectorHeader}>
-        <Text style={styles.vectorLabel}>{label}</Text>
+        <Text style={styles.vectorLabel}>{label.toUpperCase()}</Text>
         <Text style={[styles.vectorScore, { color }]}>{score}/100</Text>
       </View>
-      {issues.length > 0 && (
-        <View style={styles.issuesList}>
-          {issues.map((issue, i) => (
-            <Text key={i} style={styles.issueText}>
-              {issue}
-            </Text>
-          ))}
-        </View>
+      {analysis && (
+        <Text style={styles.vectorAnalysis}>{analysis}</Text>
       )}
     </View>
   );
@@ -270,39 +229,21 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
-  // Map background styles
-  mapBackground: {
-    minHeight: SCREEN_HEIGHT * 0.5,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    justifyContent: 'flex-end',
-  },
-  mapImage: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  blurCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
-    minHeight: SCREEN_HEIGHT * 0.5,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    paddingBottom: 40,
-  },
-  // Default modal styles
   modal: {
-    backgroundColor: Colors.surface,
+    backgroundColor: '#0a0a0a',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     minHeight: SCREEN_HEIGHT * 0.5,
     maxHeight: SCREEN_HEIGHT * 0.85,
-    paddingBottom: 40,
+    borderTopWidth: 1,
+    borderColor: '#333',
   },
   handleBar: {
     width: 40,
     height: 4,
-    backgroundColor: Colors.border,
+    backgroundColor: '#333',
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -314,13 +255,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#222',
   },
   headerTitle: {
     fontFamily: 'Menlo',
-    fontSize: 14,
-    color: Colors.accent,
+    fontSize: 12,
+    color: '#666',
     letterSpacing: 2,
+    fontWeight: '900',
   },
   closeButton: {
     padding: 8,
@@ -328,13 +270,13 @@ const styles = StyleSheet.create({
   closeText: {
     fontFamily: 'Menlo',
     fontSize: 12,
-    color: Colors.textMuted,
-    letterSpacing: 1,
+    color: '#fff',
+    fontWeight: 'bold',
   },
   urlText: {
     fontFamily: 'Menlo',
     fontSize: 11,
-    color: Colors.textDim,
+    color: '#444',
     paddingHorizontal: 20,
     paddingVertical: 8,
   },
@@ -345,13 +287,14 @@ const styles = StyleSheet.create({
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   loadingText: {
-    marginTop: 16,
-    color: Colors.textMuted,
+    marginTop: 20,
+    color: '#666',
     fontFamily: 'Menlo',
     fontSize: 12,
+    letterSpacing: 1,
   },
   errorContainer: {
     alignItems: 'center',
@@ -375,10 +318,9 @@ const styles = StyleSheet.create({
   },
   // Geo-Intel Badge
   geoIntelBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(78, 84, 200, 0.2)',
+    backgroundColor: 'rgba(78, 84, 200, 0.15)',
     borderWidth: 1,
     borderColor: Colors.accent,
     borderRadius: 20,
@@ -387,60 +329,75 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     alignSelf: 'center',
   },
-  geoIntelIcon: {
-    fontSize: 14,
-    marginRight: 8,
-  },
   geoIntelText: {
     fontFamily: 'Menlo',
     fontSize: 11,
     color: Colors.accent,
     letterSpacing: 1,
+    fontWeight: '600',
   },
   scoreSection: {
     alignItems: 'center',
     marginBottom: 20,
   },
+  scoreCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   score: {
-    fontSize: 72,
+    fontSize: 36,
     fontFamily: 'Menlo',
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
   scoreLabel: {
     fontFamily: 'Menlo',
     fontSize: 12,
     letterSpacing: 2,
-    marginTop: 4,
+    fontWeight: '700',
   },
   verdict: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  summaryBox: {
+    marginBottom: 20,
+  },
+  summaryLabel: {
+    fontFamily: 'Menlo',
+    fontSize: 10,
+    color: '#444',
+    letterSpacing: 1,
+    marginBottom: 8,
+    fontWeight: '900',
   },
   summary: {
-    color: Colors.textMuted,
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: 24,
+    color: '#ccc',
+    fontSize: 15,
+    lineHeight: 24,
   },
   vectorsSection: {
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: '#222',
     paddingTop: 20,
   },
   vectorsTitle: {
     fontFamily: 'Menlo',
     fontSize: 11,
-    color: Colors.textDim,
+    color: '#444',
     letterSpacing: 2,
     marginBottom: 16,
   },
   vectorRow: {
     marginBottom: 16,
-    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    backgroundColor: '#111',
     borderRadius: 8,
     padding: 12,
   },
@@ -448,24 +405,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
   vectorLabel: {
-    color: Colors.text,
-    fontSize: 13,
-    fontWeight: '500',
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   vectorScore: {
     fontFamily: 'Menlo',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '900',
   },
-  issuesList: {
-    marginTop: 8,
-  },
-  issueText: {
-    color: Colors.textMuted,
+  vectorAnalysis: {
+    color: '#888',
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 4,
+    marginTop: 6,
+  },
+  doneBtn: {
+    backgroundColor: '#333',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  doneText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+    letterSpacing: 1,
   },
 });
