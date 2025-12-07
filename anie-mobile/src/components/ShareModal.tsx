@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Colors, ScanResult, getScoreColor, getScoreLabel } from '../types';
-import { scanUrl, extractDomain, extractUrlFromText, isValidUrl } from '../utils/api';
+import { scanUrl, extractDomain, extractUrlFromText, isValidUrl, askAnie, ChatTurn } from '../utils/api';
 import { addToHistory, generateId } from '../utils/storage';
 
 interface ShareModalProps {
@@ -25,6 +28,18 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [url, setUrl] = useState<string>('');
+
+  // Interrogation Mode state
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'anie'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<ChatTurn[]>([]);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([
+    'Explain the score',
+    'What manipulation tactics?',
+    'Is this biased?',
+  ]);
+  const chatScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     async function analyze() {
@@ -74,6 +89,47 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
   const scoreColor = result ? getScoreColor(result.ani_score) : Colors.textMuted;
   const scoreLabel = result ? getScoreLabel(result.ani_score) : '';
   const hasGeoIntel = result?.origin_location && result.origin_location !== 'Global';
+
+  // Build analysis context for chat
+  const analysisContext = result
+    ? `Score: ${result.ani_score}/100. ${result.verdict}. ${result.summary}`
+    : '';
+
+  const handleAskAnie = async (question: string) => {
+    if (!question.trim() || !result) return;
+
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', text: question }]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const response = await askAnie(
+        '', // article text is stored on backend via cache
+        analysisContext,
+        question,
+        conversationHistory
+      );
+
+      // Add Anie's response
+      setChatMessages(prev => [...prev, { role: 'anie', text: response.reply }]);
+
+      // Update conversation history
+      setConversationHistory(prev => [...prev, { question, reply: response.reply }]);
+
+      // Update suggested questions
+      if (response.suggested_followups && response.suggested_followups.length > 0) {
+        setSuggestedQuestions(response.suggested_followups);
+      }
+
+      // Scroll to bottom
+      setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (err) {
+      setChatMessages(prev => [...prev, { role: 'anie', text: 'Error: Could not reach Anie. Try again.' }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   return (
     <View style={styles.overlay}>
@@ -153,31 +209,128 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
                 <View style={styles.vectorsSection}>
                   <Text style={styles.vectorsTitle}>FORENSIC BREAKDOWN</Text>
 
-                  {result.vectors.reality_anchoring && (
+                  {result.vectors.reality && (
                     <VectorRow
                       label="Reality Anchoring"
-                      score={result.vectors.reality_anchoring.score}
-                      analysis={result.vectors.reality_anchoring.analysis}
+                      score={result.vectors.reality.score}
+                      analysis={result.vectors.reality.analysis}
                     />
                   )}
 
-                  {result.vectors.tribal_engineering && (
+                  {result.vectors.tribal && (
                     <VectorRow
                       label="Tribal Engineering"
-                      score={result.vectors.tribal_engineering.score}
-                      analysis={result.vectors.tribal_engineering.analysis}
+                      score={result.vectors.tribal.score}
+                      analysis={result.vectors.tribal.analysis}
                     />
                   )}
 
-                  {result.vectors.neuro_linguistic && (
+                  {result.vectors.neuro && (
                     <VectorRow
                       label="Neuro-Linguistic"
-                      score={result.vectors.neuro_linguistic.score}
-                      analysis={result.vectors.neuro_linguistic.analysis}
+                      score={result.vectors.neuro.score}
+                      analysis={result.vectors.neuro.analysis}
+                    />
+                  )}
+
+                  {result.vectors.logic && (
+                    <VectorRow
+                      label="Logical Integrity"
+                      score={result.vectors.logic.score}
+                      analysis={result.vectors.logic.analysis}
                     />
                   )}
                 </View>
               )}
+
+              {/* Interrogation Mode - Chat Section */}
+              <View style={styles.chatSection}>
+                <Text style={styles.chatTitle}>💬 INTERROGATION MODE</Text>
+
+                {/* Suggested Questions Chips */}
+                {chatMessages.length === 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.chipsScroll}
+                  >
+                    {suggestedQuestions.map((q, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={styles.chip}
+                        onPress={() => handleAskAnie(q)}
+                      >
+                        <Text style={styles.chipText}>{q}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* Chat Messages */}
+                {chatMessages.length > 0 && (
+                  <ScrollView
+                    ref={chatScrollRef}
+                    style={styles.chatHistory}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {chatMessages.map((msg, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.chatBubble,
+                          msg.role === 'user' ? styles.userBubble : styles.anieBubble,
+                        ]}
+                      >
+                        <Text style={styles.chatBubbleText}>{msg.text}</Text>
+                      </View>
+                    ))}
+                    {chatLoading && (
+                      <View style={[styles.chatBubble, styles.anieBubble]}>
+                        <Text style={styles.chatBubbleText}>Analyzing...</Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                )}
+
+                {/* Follow-up Chips (after conversation started) */}
+                {chatMessages.length > 0 && !chatLoading && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.chipsScroll}
+                  >
+                    {suggestedQuestions.map((q, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={styles.chip}
+                        onPress={() => handleAskAnie(q)}
+                      >
+                        <Text style={styles.chipText}>{q}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* Chat Input */}
+                <View style={styles.chatInputRow}>
+                  <TextInput
+                    style={styles.chatInput}
+                    placeholder="Ask Anie about this article..."
+                    placeholderTextColor="#666"
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    onSubmitEditing={() => handleAskAnie(chatInput)}
+                    returnKeyType="send"
+                  />
+                  <TouchableOpacity
+                    style={[styles.chatSendBtn, chatLoading && styles.chatSendBtnDisabled]}
+                    onPress={() => handleAskAnie(chatInput)}
+                    disabled={chatLoading || !chatInput.trim()}
+                  >
+                    <Text style={styles.chatSendText}>ASK</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
               {/* Close Button */}
               <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
@@ -435,5 +588,89 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
     letterSpacing: 1,
+  },
+  // Interrogation Mode - Chat Styles
+  chatSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#222',
+    paddingTop: 20,
+    marginTop: 20,
+  },
+  chatTitle: {
+    fontFamily: 'Menlo',
+    fontSize: 12,
+    color: '#00f0ff',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  chipsScroll: {
+    marginBottom: 12,
+  },
+  chip: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+  },
+  chipText: {
+    color: '#aaa',
+    fontSize: 12,
+  },
+  chatHistory: {
+    maxHeight: 200,
+    marginBottom: 12,
+  },
+  chatBubble: {
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    maxWidth: '85%',
+  },
+  userBubble: {
+    backgroundColor: Colors.accent,
+    alignSelf: 'flex-end',
+  },
+  anieBubble: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#333',
+    alignSelf: 'flex-start',
+  },
+  chatBubbleText: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 14,
+  },
+  chatSendBtn: {
+    backgroundColor: Colors.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  chatSendBtnDisabled: {
+    opacity: 0.5,
+  },
+  chatSendText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 });

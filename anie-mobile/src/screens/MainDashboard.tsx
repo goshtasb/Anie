@@ -213,13 +213,13 @@ export function MainDashboard() {
 function VectorCard({
   title,
   score,
-  status,
-  issues,
+  status = 'pass',
+  issues = [],
 }: {
   title: string;
   score: number;
-  status: 'pass' | 'flag' | 'fail';
-  issues: string[];
+  status?: 'pass' | 'flag' | 'fail';
+  issues?: string[];
 }) {
   const statusColors = {
     pass: Colors.safe,
@@ -317,30 +317,39 @@ function ResultModal({
                 <View style={vectorStyles.container}>
                   <Text style={vectorStyles.sectionTitle}>FORENSIC BREAKDOWN</Text>
 
-                  {vectors.reality_anchoring && (
+                  {vectors.reality && (
                     <VectorCard
                       title="REALITY ANCHORING"
-                      score={vectors.reality_anchoring.score}
-                      status={vectors.reality_anchoring.status}
-                      issues={vectors.reality_anchoring.issues}
+                      score={vectors.reality.score}
+                      status={vectors.reality.status}
+                      issues={vectors.reality.issues}
                     />
                   )}
 
-                  {vectors.tribal_engineering && (
+                  {vectors.tribal && (
                     <VectorCard
                       title="TRIBAL ENGINEERING"
-                      score={vectors.tribal_engineering.score}
-                      status={vectors.tribal_engineering.status}
-                      issues={vectors.tribal_engineering.issues}
+                      score={vectors.tribal.score}
+                      status={vectors.tribal.status}
+                      issues={vectors.tribal.issues}
                     />
                   )}
 
-                  {vectors.neuro_linguistic && (
+                  {vectors.neuro && (
                     <VectorCard
                       title="NEURO-LINGUISTIC"
-                      score={vectors.neuro_linguistic.score}
-                      status={vectors.neuro_linguistic.status}
-                      issues={vectors.neuro_linguistic.issues}
+                      score={vectors.neuro.score}
+                      status={vectors.neuro.status}
+                      issues={vectors.neuro.issues}
+                    />
+                  )}
+
+                  {vectors.logic && (
+                    <VectorCard
+                      title="LOGICAL INTEGRITY"
+                      score={vectors.logic.score}
+                      status={vectors.logic.status}
+                      issues={vectors.logic.issues}
                     />
                   )}
                 </View>

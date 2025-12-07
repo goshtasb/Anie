@@ -569,3 +569,144 @@ footer {
         padding: 0.8rem;
     }
 }
+
+/* ============================================
+   INTERROGATION MODE - Chat Console
+   ============================================ */
+.chat-container {
+    margin-top: 1.5rem;
+    border-top: 1px solid #333;
+    padding-top: 1rem;
+}
+
+.chat-header {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    color: #00f0ff;
+    letter-spacing: 1px;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+}
+
+.chat-history {
+    max-height: 250px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    background: #000;
+    border: 1px solid #222;
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 0.9rem;
+}
+
+.chat-msg {
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.msg-user {
+    color: #4e54c8;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.msg-anie {
+    color: #ddd;
+    display: block;
+    margin-top: 4px;
+}
+
+.chat-chips {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.chip {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #444;
+    color: #aaa;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-display);
+}
+
+.chip:hover {
+    background: rgba(78, 84, 200, 0.2);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.chat-input {
+    flex: 1;
+    background: #111;
+    border: 1px solid #333;
+    color: #fff;
+    padding: 0.7rem;
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+}
+
+.chat-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.chat-input::placeholder {
+    color: #555;
+}
+
+.btn-chat {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+}
+
+.btn-chat:hover {
+    background: var(--accent-light);
+}
+
+.chat-thinking {
+    color: #00f0ff;
+    font-style: italic;
+    font-size: 0.85rem;
+}
+
+/* Chat Message Bubbles */
+.user-msg {
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    margin-left: 20%;
+    text-align: right;
+}
+
+.anie-msg {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #ddd;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    margin-right: 20%;
+    line-height: 1.5;
+}

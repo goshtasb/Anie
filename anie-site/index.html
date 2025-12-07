@@ -177,9 +177,15 @@
 
     <script>
         const API_URL = 'https://aegis-alpha.onrender.com/v1/scan';
+        const CHAT_URL = 'https://aegis-alpha.onrender.com/v1/chat';
         const scanBtn = document.getElementById('scanBtn');
         const urlInput = document.getElementById('urlInput');
         const resultDiv = document.getElementById('scanResult');
+
+        // Interrogation Mode state
+        let currentArticleText = '';
+        let currentAnalysis = '';
+        let conversationHistory = [];
 
         // Scanning messages for animation
         const loadingMessages = [
@@ -277,12 +283,40 @@
                     }
                 }
 
+                // Store for Interrogation Mode
+                currentArticleText = data.article_text || '';
+                currentAnalysis = `Score: ${score}/100. ${data.verdict}. ${data.summary}`;
+                conversationHistory = [];
+
+                // Build chat UI
+                const chatHTML = `
+                    <div class="chat-container" id="chatContainer">
+                        <div class="chat-header">💬 INTERROGATION MODE</div>
+                        <div class="chat-history" id="chatHistory"></div>
+                        <div class="chat-chips" id="chatChips">
+                            <button class="chip" onclick="askAnie('Explain the score')">Explain the score</button>
+                            <button class="chip" onclick="askAnie('What manipulation tactics are used?')">What tactics?</button>
+                            <button class="chip" onclick="askAnie('Is this article biased?')">Is this biased?</button>
+                        </div>
+                        <div class="chat-input-row">
+                            <input type="text" class="chat-input" id="chatInput" placeholder="Ask Anie about this article..." />
+                            <button class="btn-chat" id="chatSendBtn" onclick="sendChatQuestion()">ASK</button>
+                        </div>
+                    </div>
+                `;
+
                 resultDiv.innerHTML = `
                     <div class="res-score ${colorClass}">${score}/100</div>
                     <div class="res-verdict">${data.verdict || 'Analysis Complete'}</div>
                     <p class="res-summary">${data.summary || ''}</p>
                     ${vectorsHTML}
+                    ${chatHTML}
                 `;
+
+                // Allow Enter key to send chat
+                document.getElementById('chatInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') sendChatQuestion();
+                });
 
             } catch (e) {
                 clearInterval(loadingInterval);
@@ -325,6 +359,81 @@
         // Run immediately on load, then refresh every 30 seconds
         updateTicker();
         setInterval(updateTicker, 30000);
+
+        // ============================================================
+        // INTERROGATION MODE: Chat Functions
+        // ============================================================
+
+        function sendChatQuestion() {
+            const input = document.getElementById('chatInput');
+            if (!input) return;
+            const question = input.value.trim();
+            if (question) {
+                askAnie(question);
+                input.value = '';
+            }
+        }
+
+        async function askAnie(question) {
+            const historyDiv = document.getElementById('chatHistory');
+            const chipsDiv = document.getElementById('chatChips');
+            const sendBtn = document.getElementById('chatSendBtn');
+
+            if (!historyDiv || !currentAnalysis) return;
+
+            // Add user message to UI
+            historyDiv.innerHTML += `<div class="chat-msg user-msg">${question}</div>`;
+            historyDiv.scrollTop = historyDiv.scrollHeight;
+
+            // Show loading
+            sendBtn.disabled = true;
+            sendBtn.textContent = '...';
+            historyDiv.innerHTML += `<div class="chat-msg anie-msg" id="anieTyping">Analyzing...</div>`;
+
+            try {
+                const response = await fetch(CHAT_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        text: currentArticleText,
+                        analysis_context: currentAnalysis,
+                        question: question,
+                        conversation_history: conversationHistory
+                    })
+                });
+
+                // Remove typing indicator
+                const typing = document.getElementById('anieTyping');
+                if (typing) typing.remove();
+
+                if (!response.ok) {
+                    throw new Error('Failed to get response');
+                }
+
+                const data = await response.json();
+
+                // Add Anie's response
+                historyDiv.innerHTML += `<div class="chat-msg anie-msg">${data.reply}</div>`;
+                historyDiv.scrollTop = historyDiv.scrollHeight;
+
+                // Update conversation history
+                conversationHistory.push({ question: question, reply: data.reply });
+
+                // Update chips with suggested follow-ups
+                if (data.suggested_followups && data.suggested_followups.length > 0) {
+                    chipsDiv.innerHTML = data.suggested_followups.map(q =>
+                        `<button class="chip" onclick="askAnie('${q.replace(/'/g, "\\'")}')">${q}</button>`
+                    ).join('');
+                }
+
+            } catch (e) {
+                const typing = document.getElementById('anieTyping');
+                if (typing) typing.textContent = 'Error: Could not reach Anie. Try again.';
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'ASK';
+            }
+        }
     </script>
 
     <!-- GoatCounter Analytics (Privacy-First) -->

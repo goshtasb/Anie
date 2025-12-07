@@ -1,6 +1,17 @@
 import { ScanResult } from '../types';
 
 const API_URL = 'https://aegis-alpha.onrender.com/v1/scan';
+const CHAT_URL = 'https://aegis-alpha.onrender.com/v1/chat';
+
+export interface ChatTurn {
+  question: string;
+  reply: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  suggested_followups?: string[];
+}
 
 export async function scanUrl(url: string): Promise<ScanResult> {
   const response = await fetch(API_URL, {
@@ -45,4 +56,31 @@ export function extractUrlFromText(text: string): string | null {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const matches = text.match(urlRegex);
   return matches ? matches[0] : null;
+}
+
+export async function askAnie(
+  articleText: string,
+  analysisContext: string,
+  question: string,
+  conversationHistory: ChatTurn[]
+): Promise<ChatResponse> {
+  const response = await fetch(CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: articleText,
+      analysis_context: analysisContext,
+      question: question,
+      conversation_history: conversationHistory,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Chat failed' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
 }
