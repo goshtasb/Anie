@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V5.6 "Sanitizer" (Aggressive Post-Processing)
+# engine.py - Acuity A.N.I.E. Engine V6.0 "Grok-4 Upgrade" (96% Cost Reduction + 2M Context)
 import os
 import json
 import re
@@ -72,8 +72,8 @@ if xai_key and not xai_key.startswith("xai-your"):
         api_key=xai_key,
         base_url="https://api.x.ai/v1"
     )
-    MODEL = "grok-3-mini"
-    print("🚀 Engine V3.1: xAI Grok-3 (Parallel Swarm)")
+    MODEL = "grok-4-1-fast-reasoning"  # V6.0 UPGRADE: 96% Cheaper, 2M Context, Chain-of-Thought
+    print("🚀 Engine V6.0: xAI Grok-4.1 Fast Reasoning (2M Context)")
 else:
     client = AsyncOpenAI(api_key=openai_key)
     MODEL = "gpt-4o-mini"
