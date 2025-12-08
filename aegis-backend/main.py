@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.51"  # V4.6 Full Spectrum NCI: 20-Point Forensic Checklist
+API_VERSION = "1.0.55"  # V5.2 Nuance Protocol: Complexity vs Fabrication
 
 @app.get("/")
 def health_check():
