@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V6.1 "Ultra-Speed" (Non-Reasoning for Instant Results)
+# engine.py - Acuity A.N.I.E. Engine V6.0 "Grok-4 Upgrade" (Reasoning Model + 2M Context)
 import os
 import json
 import re
@@ -72,8 +72,8 @@ if xai_key and not xai_key.startswith("xai-your"):
         api_key=xai_key,
         base_url="https://api.x.ai/v1"
     )
-    MODEL = "grok-4-1-fast-non-reasoning"  # V6.1: Non-reasoning for speed (no CoT latency)
-    print("🚀 Engine V6.1: xAI Grok-4.1 Fast (Non-Reasoning, Ultra-Speed)")
+    MODEL = "grok-4-1-fast-reasoning"  # V6.0: Reasoning model for deep forensic analysis
+    print("🚀 Engine V6.0: xAI Grok-4.1 Fast Reasoning (2M Context)")
 else:
     client = AsyncOpenAI(api_key=openai_key)
     MODEL = "gpt-4o-mini"
