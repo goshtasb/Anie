@@ -158,11 +158,18 @@ def log_scan_event(user_id: str, url: str, score: int, action: str, origin_locat
 
     This is the "Turnstile" - we count every body that walks through,
     even if they're reading the same article.
+
+    V4.1 Enterprise Data Hygiene: Stores url_hash for instant aggregation.
+    This allows B2B queries like "velocity by article" without text cleaning.
     """
     if not supabase:
         return
 
     try:
+        # V4.1: Calculate the "SKU" (Nuclear Hash) for B2B aggregation
+        # Groups "cnn.com?ref=twitter" and "cnn.com?ref=facebook" into ONE metric
+        url_hash = get_nuclear_hash(url)
+
         # Extract analytics from headers (Cloudflare/Render headers)
         country = request_headers.get('cf-ipcountry', 'Unknown')
         user_agent = request_headers.get('user-agent', 'Unknown')
@@ -178,7 +185,8 @@ def log_scan_event(user_id: str, url: str, score: int, action: str, origin_locat
 
         supabase.table("scan_events").insert({
             "user_id": user_id or "anonymous",
-            "url": url,
+            "url": url,                      # Raw URL for debugging
+            "url_hash": url_hash,            # V4.1: B2B aggregation key
             "ani_score": score,
             "action_type": action,
             "origin_location": origin_location,
