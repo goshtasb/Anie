@@ -1,8 +1,8 @@
 # main.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse
+from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
 from engine import analyze_text, client, MODEL
 import services
 from scraper import scrape_article
@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.60"  # V4.3 Mentor: Conversational chat persona + temp 0.7
+API_VERSION = "1.0.61"  # V4.4 Silent Feedback: Thumbs up/down for training data
 
 @app.get("/")
 def health_check():
@@ -105,6 +105,8 @@ async def scan_endpoint(
             cached.get("origin_location", "Global"),
             headers_dict
         )
+        # V4.4: Inject url_hash for feedback association
+        cached["url_hash"] = services.get_nuclear_hash(payload.url)
         return ANIResponse(**cached)
 
     # 2. PAYMENT GATE (DISABLED FOR ALPHA)
@@ -151,7 +153,80 @@ async def scan_endpoint(
         headers_dict
     )
 
+    # V4.4: Inject url_hash for feedback association
+    result.url_hash = services.get_nuclear_hash(payload.url)
     return result
+
+
+# ============================================================
+# V4.4 SILENT FEEDBACK: User correction data for training
+# ============================================================
+
+@app.post("/v1/feedback")
+async def feedback_endpoint(
+    payload: FeedbackRequest,
+    x_user_id: str = Header(None, alias="X-User-ID")
+):
+    """
+    Silent Feedback Loop: Log user corrections without affecting scoring.
+    This is PASSIVE DATA COLLECTION for future model training.
+
+    Frontend sends: { url_hash: "abc123", vote: "UP" or "DOWN", reason: "optional" }
+    We find the most recent scan_event for that url_hash and update it.
+    """
+    if not services.supabase:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    # Validate vote
+    if payload.vote not in ("UP", "DOWN"):
+        raise HTTPException(status_code=400, detail="Vote must be 'UP' or 'DOWN'")
+
+    try:
+        # Find the most recent scan event for this url_hash (from this user if known)
+        query = services.supabase.table("scan_events") \
+            .select("id") \
+            .eq("url_hash", payload.url_hash) \
+            .order("created_at", desc=True) \
+            .limit(1)
+
+        # If we have a user_id, prefer their own scan
+        if x_user_id:
+            user_query = services.supabase.table("scan_events") \
+                .select("id") \
+                .eq("url_hash", payload.url_hash) \
+                .eq("user_id", x_user_id) \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if user_query.data:
+                event_id = user_query.data[0]["id"]
+            else:
+                # Fallback to any scan with this hash
+                result = query.execute()
+                if not result.data:
+                    raise HTTPException(status_code=404, detail="No scan found for this URL")
+                event_id = result.data[0]["id"]
+        else:
+            result = query.execute()
+            if not result.data:
+                raise HTTPException(status_code=404, detail="No scan found for this URL")
+            event_id = result.data[0]["id"]
+
+        # Update the scan event with feedback
+        services.supabase.table("scan_events").update({
+            "user_feedback": payload.vote,
+            "correction_note": payload.reason,
+            "feedback_timestamp": datetime.now(timezone.utc).isoformat()
+        }).eq("id", event_id).execute()
+
+        print(f"📝 Feedback logged: {payload.vote} for hash {payload.url_hash[:12]}...")
+        return {"status": "ok", "message": "Feedback recorded"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Feedback Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to record feedback")
 
 
 # ============================================================

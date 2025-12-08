@@ -2,6 +2,7 @@ import { ScanResult } from '../types';
 
 const API_URL = 'https://aegis-alpha.onrender.com/v1/scan';
 const CHAT_URL = 'https://aegis-alpha.onrender.com/v1/chat';
+const FEEDBACK_URL = 'https://aegis-alpha.onrender.com/v1/feedback';
 
 export interface ChatTurn {
   question: string;
@@ -83,4 +84,29 @@ export async function askAnie(
   }
 
   return response.json();
+}
+
+// V4.4 Silent Feedback
+export async function sendFeedback(
+  urlHash: string,
+  vote: 'UP' | 'DOWN',
+  reason?: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(FEEDBACK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url_hash: urlHash,
+        vote: vote,
+        reason: reason,
+      }),
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

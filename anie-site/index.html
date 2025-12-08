@@ -178,6 +178,7 @@
     <script>
         const API_URL = 'https://aegis-alpha.onrender.com/v1/scan';
         const CHAT_URL = 'https://aegis-alpha.onrender.com/v1/chat';
+        const FEEDBACK_URL = 'https://aegis-alpha.onrender.com/v1/feedback';
         const scanBtn = document.getElementById('scanBtn');
         const urlInput = document.getElementById('urlInput');
         const resultDiv = document.getElementById('scanResult');
@@ -186,6 +187,7 @@
         let currentArticleText = '';
         let currentAnalysis = '';
         let conversationHistory = [];
+        let currentUrlHash = '';  // V4.4: For feedback association
 
         // EXPANDED STATUS MESSAGES (The "Forensic Journey" - covers ~30s without looping)
         const loadingMessages = [
@@ -300,6 +302,7 @@
                 currentArticleText = data.article_text || '';
                 currentAnalysis = `Score: ${score}/100. ${data.verdict}. ${data.summary}`;
                 conversationHistory = [];
+                currentUrlHash = data.url_hash || '';  // V4.4: Store for feedback
 
                 // Build chat UI
                 const chatHTML = `
@@ -318,10 +321,20 @@
                     </div>
                 `;
 
+                // V4.4: Feedback buttons HTML
+                const feedbackHTML = `
+                    <div class="feedback-container" id="feedbackContainer">
+                        <span class="feedback-label">Was this analysis helpful?</span>
+                        <button class="feedback-btn" id="feedbackUp" onclick="sendFeedback('UP')">👍</button>
+                        <button class="feedback-btn" id="feedbackDown" onclick="sendFeedback('DOWN')">👎</button>
+                    </div>
+                `;
+
                 resultDiv.innerHTML = `
                     <div class="res-score ${colorClass}">${score}/100</div>
                     <div class="res-verdict">${data.verdict || 'Analysis Complete'}</div>
                     <p class="res-summary">${data.summary || ''}</p>
+                    ${feedbackHTML}
                     ${vectorsHTML}
                     ${chatHTML}
                 `;
@@ -445,6 +458,53 @@
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'ASK';
+            }
+        }
+
+        // ============================================================
+        // V4.4 SILENT FEEDBACK: Thumbs Up/Down
+        // ============================================================
+
+        async function sendFeedback(vote) {
+            if (!currentUrlHash) {
+                console.log('No url_hash available for feedback');
+                return;
+            }
+
+            const container = document.getElementById('feedbackContainer');
+            const upBtn = document.getElementById('feedbackUp');
+            const downBtn = document.getElementById('feedbackDown');
+
+            // Disable buttons immediately to prevent double-clicks
+            if (upBtn) upBtn.disabled = true;
+            if (downBtn) downBtn.disabled = true;
+
+            try {
+                const response = await fetch(FEEDBACK_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        url_hash: currentUrlHash,
+                        vote: vote
+                    })
+                });
+
+                if (response.ok) {
+                    // Replace buttons with thank you message
+                    if (container) {
+                        container.innerHTML = `<span class="feedback-thanks">Thanks for your feedback!</span>`;
+                    }
+                } else {
+                    console.log('Feedback submission failed');
+                    // Re-enable buttons on failure
+                    if (upBtn) upBtn.disabled = false;
+                    if (downBtn) downBtn.disabled = false;
+                }
+            } catch (e) {
+                console.log('Feedback error:', e);
+                // Re-enable buttons on error
+                if (upBtn) upBtn.disabled = false;
+                if (downBtn) downBtn.disabled = false;
             }
         }
     </script>

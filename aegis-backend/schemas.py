@@ -12,6 +12,13 @@ class ScanRequest(BaseModel):
     device_id: Optional[str] = None  # Guest mode identifier
 
 
+class FeedbackRequest(BaseModel):
+    """V4.4 Silent Feedback: User correction data for training."""
+    url_hash: str = Field(..., description="Nuclear hash of the URL (groups tracking params)")
+    vote: str = Field(..., description="UP or DOWN")
+    reason: Optional[str] = Field(default=None, max_length=500, description="Optional correction note")
+
+
 class ChatRequest(BaseModel):
     """Interrogation Mode: Follow-up questions about a scanned article."""
     text: str = Field(..., max_length=8000, description="The article text being discussed (8k chars max)")
@@ -53,6 +60,7 @@ class ANIResponse(BaseModel):
     summary: str = Field(..., description="2-3 sentence summary of findings")
     verdict: str = Field(..., description="Human-readable verdict")
     origin_location: str = Field(default="Global", description="Geopolitical origin of the narrative")
+    url_hash: Optional[str] = Field(default=None, description="V4.4: Nuclear hash for feedback association")
     vectors: Dict[str, VectorScore] = Field(
         default_factory=dict,
         description="Analysis vectors: authority, emotion, logic, headline"

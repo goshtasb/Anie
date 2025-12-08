@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Colors, ScanResult, getScoreColor, getScoreLabel } from '../types';
-import { scanUrl, extractDomain, extractUrlFromText, isValidUrl, askAnie, ChatTurn } from '../utils/api';
+import { scanUrl, extractDomain, extractUrlFromText, isValidUrl, askAnie, ChatTurn, sendFeedback } from '../utils/api';
 import { addToHistory, generateId } from '../utils/storage';
 
 interface ShareModalProps {
@@ -40,6 +40,9 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
     'Is this biased?',
   ]);
   const chatScrollRef = useRef<ScrollView>(null);
+
+  // V4.4 Feedback state
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   useEffect(() => {
     async function analyze() {
@@ -131,6 +134,16 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
     }
   };
 
+  // V4.4 Feedback handler
+  const handleFeedback = async (vote: 'UP' | 'DOWN') => {
+    if (!result?.url_hash || feedbackSent) return;
+
+    const success = await sendFeedback(result.url_hash, vote);
+    if (success) {
+      setFeedbackSent(true);
+    }
+  };
+
   return (
     <View style={styles.overlay}>
       <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
@@ -195,6 +208,29 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
 
               {/* Verdict */}
               <Text style={styles.verdict}>{result.verdict}</Text>
+
+              {/* V4.4 Feedback UI */}
+              <View style={styles.feedbackContainer}>
+                {feedbackSent ? (
+                  <Text style={styles.feedbackThanks}>Thanks for your feedback!</Text>
+                ) : (
+                  <>
+                    <Text style={styles.feedbackLabel}>Was this helpful?</Text>
+                    <TouchableOpacity
+                      style={styles.feedbackBtn}
+                      onPress={() => handleFeedback('UP')}
+                    >
+                      <Text style={styles.feedbackEmoji}>👍</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.feedbackBtn}
+                      onPress={() => handleFeedback('DOWN')}
+                    >
+                      <Text style={styles.feedbackEmoji}>👎</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
 
               {/* Summary */}
               {result.summary && (
@@ -672,5 +708,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 12,
+  },
+  // V4.4 Feedback Styles
+  feedbackContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  feedbackLabel: {
+    color: '#888',
+    fontSize: 12,
+    fontFamily: 'Menlo',
+  },
+  feedbackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: '#444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackEmoji: {
+    fontSize: 18,
+  },
+  feedbackThanks: {
+    color: Colors.safe,
+    fontSize: 12,
+    fontFamily: 'Menlo',
   },
 });

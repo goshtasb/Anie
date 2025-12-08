@@ -11,6 +11,7 @@ export interface ScanResult {
   verdict: string;
   summary: string;
   origin_location?: string;  // Geopolitical origin: "Moscow, Russia", "Washington, DC", "Global"
+  url_hash?: string;  // V4.4: Nuclear hash for feedback association
   vectors?: {
     reality?: VectorAnalysis;
     tribal?: VectorAnalysis;
