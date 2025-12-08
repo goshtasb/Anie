@@ -465,7 +465,8 @@
         // V4.4 SILENT FEEDBACK: Thumbs Up/Down
         // ============================================================
 
-        async function sendFeedback(vote) {
+        // NOTE: This function must be in global scope for onclick handlers
+        window.sendFeedback = async function(vote) {
             if (!currentUrlHash) {
                 console.log('No url_hash available for feedback');
                 return;
