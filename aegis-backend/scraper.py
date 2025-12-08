@@ -82,6 +82,8 @@ CLOUD_BLOCKED_DOMAINS = [
     'cbsnews.com',
     'abcnews.go.com',
     'foxnews.com',
+    # React/SPA sites that serve minimal content to non-browsers
+    'businessinsider.com', 'www.businessinsider.com',
 ]
 
 # Elements to remove (ads, nav, comments, etc.)
@@ -594,11 +596,11 @@ async def scrape_article(url: str) -> dict:
             if is_known_blocked:
                 return {
                     "success": False,
-                    "error": f"{domain} blocks automated requests. Use the Chrome extension to scan this article directly from your browser."
+                    "error": f"{domain} uses React/SPA rendering that blocks server-side scraping. Open the article in Chrome and click the Acuity extension icon to scan."
                 }
             return {
                 "success": False,
-                "error": "Could not extract readable content. Site may be blocking automated requests."
+                "error": "Could not extract readable content. This site may use client-side rendering. Try using the Chrome extension directly."
             }
 
         # Extract title (prefer JSON-LD title if available)

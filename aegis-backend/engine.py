@@ -1,12 +1,64 @@
-# engine.py - Acuity A.N.I.E. Engine V5.2 "Nuance Protocol" (Complexity vs Fabrication)
+# engine.py - Acuity A.N.I.E. Engine V5.6 "Sanitizer" (Aggressive Post-Processing)
 import os
 import json
+import re
 import asyncio
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from openai import AsyncOpenAI
 from schemas import ANIResponse, VectorScore, FactCheckVector
 from dotenv import load_dotenv
+
+
+# ============================================================
+# V5.6 SANITIZER: Aggressive Post-Processing Clean Room
+# Strips ALL internal codes from user-facing output
+# ============================================================
+def sanitize_output(text: str) -> str:
+    """
+    V5.6 Clean Room Sanitizer - AGGRESSIVE code removal.
+    Catches ALL variations of NCI/Marker leakage patterns.
+    """
+    if not text:
+        return text
+
+    # PATTERN GROUP 1: Full NCI Marker patterns with optional dash and description
+    # Catches: "NCI Marker #13 - Artificial Urgency", "NCI Marker #7", "NCI marker #14"
+    text = re.sub(r'NCI\s+[Mm]arker\s*#?\d+\s*[-–—:]?\s*', '', text, flags=re.IGNORECASE)
+
+    # PATTERN GROUP 2: Standalone Marker patterns
+    # Catches: "Marker #13 - ", "marker #7", "#13 - Artificial"
+    text = re.sub(r'[Mm]arker\s*#\d+\s*[-–—:]?\s*', '', text, flags=re.IGNORECASE)
+
+    # PATTERN GROUP 3: "#X -" or "#X:" patterns (code + separator)
+    # Catches: "#13 - Artificial Urgency", "#14 - High-Arousal"
+    text = re.sub(r'#\d+\s*[-–—:]\s*', '', text)
+
+    # PATTERN GROUP 4: "NCI #X" format
+    text = re.sub(r'NCI\s*#\d+\s*[-–—:]?\s*', '', text, flags=re.IGNORECASE)
+
+    # PATTERN GROUP 5: Checklist item references
+    text = re.sub(r'(?:NCI|checklist)\s+(?:item|check)\s*#?\d+\s*[-–—:]?\s*', '', text, flags=re.IGNORECASE)
+
+    # PATTERN GROUP 6: "markers #X and #Y" format
+    text = re.sub(r'markers?\s*#\d+(?:\s*(?:and|,)\s*#\d+)*\s*[-–—:]?\s*', '', text, flags=re.IGNORECASE)
+
+    # PATTERN GROUP 7: Detected/found/triggered followed by code
+    text = re.sub(r'(?:detected|found|triggered|flagged|through)\s+(?:NCI\s+)?(?:[Mm]arker\s*)?#?\d+\s*[-–—:]?\s*', '', text, flags=re.IGNORECASE)
+
+    # PATTERN GROUP 8: "and #X" patterns in middle of sentences
+    text = re.sub(r'\s+and\s+#\d+\s*[-–—:]?\s*', ' and ', text, flags=re.IGNORECASE)
+
+    # CLEANUP: Fix artifacts left behind
+    text = re.sub(r'\s+', ' ', text)  # Multiple spaces to single
+    text = re.sub(r'\s+([.,;:])', r'\1', text)  # Space before punctuation
+    text = re.sub(r'(?:through|via|using)\s+and\s+', '', text)  # "through and" artifacts
+    text = re.sub(r'\(\s*\)', '', text)  # Empty parentheses
+    text = re.sub(r'\[\s*\]', '', text)  # Empty brackets
+    text = re.sub(r',\s*,', ',', text)  # Double commas
+    text = re.sub(r'\s*,\s*and\s+and\s*', ' and ', text)  # "and and" artifacts
+
+    return text.strip()
 
 load_dotenv()
 
@@ -41,7 +93,7 @@ else:
 
 
 def get_psyop_hunter_prompt(current_date: str, search_context: str) -> str:
-    """Generate the Psyop Hunter V5.2 prompt - Nuance Protocol (Complexity vs Fabrication)."""
+    """Generate the Psyop Hunter V5.6 prompt - Clean Room + Aggressive Sanitizer."""
     return f"""
 <system_role>
 You are the Acuity Counter-Intelligence Engine (A.N.I.E.).
@@ -158,125 +210,155 @@ Scan for these 5 markers:
 <step_3_scoring_algorithm>
 **THE CALCULUS:**
 - Start at 100.
-- Deduct **10-15 points** for every Hot Psyop marker detected.
-- Deduct **15-20 points** for every Cold Psyop marker detected (#15-#19).
-- **DATA DENSITY REWARD [V5.2]:** If content is >80% data/citations with <5% adjectives → Score **90-100**.
-- **RED LINE CRASH:** Score CANNOT exceed 35 if:
-  - Dehumanization (#10) detected
-  - Double Bind (#20) detected
-  - Fabrication detected
-  - **THE INVERSION KILL SWITCH (#6):** Article claims UP when data shows DOWN (or vice versa) for the SAME TIMEFRAME = Score < 25.
-  - **FULL CONSENSUS ENGINEERING:** Markers #15 + #16 + #17 ALL present (Inevitability + Elite Mimicry + Neutralization)
+- Deduct **10-15 points** for every manipulation tactic detected.
+- Deduct **15-20 points** for every Cold Psyop tactic (Inevitability, Elite Mimicry, Neutralization).
+
+**V5.4 SCORE CEILING RULE (CRITICAL):**
+- **Score 80-100 (Organic):** REQUIRES **ZERO** manipulation tactics found. If you detect ANY tactic, score CANNOT be 80+.
+- **Score 60-79 (Moderate Spin):** 1-3 tactics detected (bias/framing present).
+- **Score 40-59 (High Manipulation):** 4+ tactics OR significant emotional coercion.
+- **Score < 40 (Engineered):** Red Lines triggered OR Full Consensus Engineering.
+
+**THE CEILING IS ABSOLUTE:**
+- If you find In-Group Framing → Max score = 75
+- If you find High-Arousal Language → Max score = 75
+- If you find BOTH → Max score = 65
+- "Organic" (80+) means ZERO manipulation detected. Period.
+
+**RED LINE CRASH (Score < 35):**
+- Dehumanization detected
+- Double Bind detected
+- Trend Inversion (fabrication) detected
+- Full Consensus Engineering (Inevitability + Elite Mimicry + Neutralization ALL present)
 
 **THE WEAKEST LINK RULE:**
 Final ANI Score **MUST NOT** exceed the *lowest* Vector Score by more than 5 points.
-
-**EXAMPLES:**
-- Reality(90) + Tribal(40) + Intent(80) + Logic(85) = **Final = 45 MAX** (Tribal weakest)
-- Reality(85) + Tribal(65) + Intent(70) + Logic(60) = **Final = 65 MAX** (Logic weakest)
-- Found markers #10, #20 = **Final < 30** (RED LINE triggered)
-- Found markers #15, #16, #17 = **Final < 30** (COLD PSYOP: Full Consensus Engineering)
-- Calm article + "Smart people know" + "It's inevitable" + "No drama" = **COLD PSYOP, Score < 30**
-- Found #6 (Trend Inversion with SAME TIMEFRAME contradiction) = **Final < 25** (FABRICATION)
-- Data-dense reference article with proper citations = **Score 90-100** (Organic Reference)
 
 **VERDICT KEY:**
 - 0-35: Engineered Narrative (Psyop)
 - 36-55: High Manipulation
 - 56-75: Moderate Spin
-- 76-100: Organic Reporting
+- 76-100: Organic Reporting (ZERO tactics found)
 </step_3_scoring_algorithm>
 
 <output_formatting_rules>
-**CRITICAL - NAME THE SPECIFIC NCI MARKER IN ANALYSIS:**
-Do NOT say "It is biased." Instead: "Detected **#7 Moral Superiority** - the phrase 'only compassionate people support X' frames policy as moral test."
+**V5.4 CLEAN ROOM PROTOCOL - FORBIDDEN VOCABULARY:**
 
-**FORMAT:**
-"**NCI Marker #[NUMBER] - [NAME]:** [EXACT QUOTE from text]. **Analysis:** [HOW this manipulates the reader psychologically]."
+**FORBIDDEN TERMS (NEVER USE IN OUTPUT):**
+You are **ABSOLUTELY FORBIDDEN** from using these in `summary`, `verdict`, `analysis`, or any user-facing field:
+- The word "NCI"
+- The word "Marker" or "marker"
+- The symbol "#" followed by any number (e.g., "#7", "#14")
+- Any reference to internal checklist numbering
 
-**GOOD EXAMPLES:**
-- "**NCI Marker #4 - Contextual Omission:** The article reports '50 casualties' without mentioning the preceding attack that prompted the response, creating false narrative of unprovoked aggression."
-- "**NCI Marker #14 - High-Arousal Loading:** 'Catastrophic failure' describes a 2% budget shortfall - proportionally misleading language designed to trigger fear."
-- "**NCI Marker #18 - Agency Deletion:** 'Shots were fired' hides who fired. Compare to 'Officers fired shots' which assigns responsibility."
+**TRANSLATION REQUIRED:**
+- BAD: "Found Marker #7" or "NCI Marker #14 detected" or "triggered #7"
+- GOOD: "Detected In-Group/Out-Group Framing" or "Uses high-arousal emotive language"
 
-**FOR CLEAN REFERENCE ARTICLES [V5.2]:**
-- "No NCI markers detected. Article is data-dense with proper citations to primary sources (World Bank, WHO, IMF). Tone matches disclaimer. Organic Reference."
+**INTERNAL (thinking_process ONLY):** You may use numbers here for calculation rigor.
+**EXTERNAL (summary, analysis, verdict):** ONLY natural language concept names. ZERO codes.
 
-**BAD EXAMPLES (DO NOT):**
-- "The article uses emotional language." (No marker cited)
-- "There is some bias." (No specificity)
+**FORMAT FOR USER-FACING OUTPUT:**
+"**[TACTIC NAME]:** [EXACT QUOTE from text]. **Analysis:** [HOW this manipulates the reader psychologically]."
+
+**GOOD EXAMPLES (User-Facing):**
+- "**Contextual Omission:** The article reports '50 casualties' without mentioning the preceding attack, creating false narrative of unprovoked aggression."
+- "**High-Arousal Language:** 'Catastrophic failure' describes a 2% budget shortfall - proportionally misleading language designed to trigger fear."
+- "**In-Group/Out-Group Framing:** 'Democrat-led cities' frames political affiliation as the cause of violence rather than examining policy specifics."
+
+**FOR CLEAN ARTICLES (Score 80+):**
+- "No manipulation tactics detected. Article presents balanced reporting with proper citations."
+
+**WHAT NEVER TO OUTPUT:**
+- "NCI Marker #14 detected" ❌
+- "Marker #7 In-Group/Out-Group" ❌
+- "Found markers #7 and #14" ❌
+- "Triggered NCI checklist item" ❌
 </output_formatting_rules>
 
 <output_schema>
 Return valid JSON only. Fill "thinking_process" FIRST.
 
 {{
-  "thinking_process": "1. Classify content type. 2. Check for Data Density (reference article?). 3. Check for Trend Inversion (SAME TIMEFRAME contradiction only). 4. Check if disclaimer matches tone. 5. Scan all 24 NCI markers. 6. Check for Cold Psyop combo (#15+#16+#17). 7. Apply Kill Switches or Data Density Reward. 8. Apply Weakest Link Rule.",
+  "thinking_process": "1. Classify content type. 2. Scan all 24 markers (use numbers internally: #1-#24). 3. Check for Kill Switches. 4. Apply Weakest Link Rule. 5. TRANSLATE marker numbers to concept names for output.",
   "content_type": "One of: [commercial, news, opinion, lifestyle, reference]",
   "ani_score": INTEGER,
   "verdict": "One of: [Organic, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
-  "summary": "One sentence citing the SPECIFIC NCI markers detected, or confirming clean reference if none found.",
+  "summary": "One sentence citing the TACTICS DETECTED by name (NO marker numbers). Example: 'Detected In-Group Framing and High-Arousal Language targeting immigration policy.'",
   "origin_location": "String. Geopolitical origin: 'Washington, DC', 'Moscow, Russia', 'Beijing, China', 'London, UK', 'Global'.",
   "vectors": {{
     "reality_anchoring": {{
       "score": INTEGER,
       "flags": ["EXACT QUOTE from text"],
-      "analysis": "**NCI Marker #[N] - [Name]:** [Quote]. **Analysis:** [Explanation]"
+      "analysis": "**[Tactic Name]:** [Quote]. **Analysis:** [Explanation]. NO marker numbers."
     }},
     "tribal_engineering": {{
       "score": INTEGER,
       "flags": ["EXACT QUOTE from text"],
-      "analysis": "**NCI Marker #[N] - [Name]:** [Quote]. **Analysis:** [Explanation]"
+      "analysis": "**[Tactic Name]:** [Quote]. **Analysis:** [Explanation]. NO marker numbers."
     }},
     "neuro_linguistic": {{
       "score": INTEGER,
       "flags": ["EXACT QUOTE from text"],
-      "analysis": "**NCI Marker #[N] - [Name]:** [Quote]. **Analysis:** [Explanation]"
+      "analysis": "**[Tactic Name]:** [Quote]. **Analysis:** [Explanation]. NO marker numbers."
     }},
     "logical_integrity": {{
       "score": INTEGER,
       "flags": ["EXACT QUOTE from text"],
-      "analysis": "**NCI Marker #[N] - [Name]:** [Quote]. **Analysis:** [Explanation]"
+      "analysis": "**[Tactic Name]:** [Quote]. **Analysis:** [Explanation]. NO marker numbers."
     }}
   }}
 }}
 </output_schema>
 
 <examples>
-**Test Case - Hot Psyop (Adjective Weaponization):**
-Content: "Trump's aggressive war on drugs marks a dangerous escalation..."
-Thinking: "NEWS content. Scanning 24 markers... Found #14 (High-Arousal: 'aggressive', 'dangerous'), #8 (Moral Superiority). Deduct 25 points. Tribal = 45, Intent = 50. Lowest = 45. Final = 50 max."
-Analysis: "**NCI Marker #14 - High-Arousal Loading:** 'aggressive' and 'dangerous' editorialize policy before facts."
-Final Score: 50
-Verdict: High Manipulation
+**Test Case - V5.4 Clean Room Demo (Two Tactics Found):**
+Content: "The horrific stabbing in Democrat-led cities continues to raise questions about sanctuary policies..."
+Thinking (INTERNAL): "NEWS content. Found In-Group Framing ('Democrat-led') and High-Arousal ('horrific'). TWO TACTICS = Ceiling 65 max. Apply deductions. Tribal=60, Neuro=65."
+Analysis (USER-FACING - NO CODES): "**In-Group/Out-Group Framing:** 'Democrat-led cities' attributes violence to political affiliation. **High-Arousal Language:** 'horrific' amplifies emotional response."
+Summary (USER-FACING - NO CODES): "Detected In-Group Framing and High-Arousal Language. Article uses factual events but frames them to amplify tribal divisions."
+Final Score: 62 (Two tactics = max 65, minus deductions)
+Verdict: Moderate Spin
 
-**Test Case - Cold Psyop (Consensus Engineering) [V4.8]:**
-Content: "The smartest people already know it... The rest will catch up... There's no drama in any of this... The window is narrower than it looks."
-Thinking: "OPINION content. Scanning 24 markers... Found #15 (Inevitability: 'The rest will catch up'), #16 (Elite Mimicry: 'smartest people already know'), #17 (Preemptive Neutralization: 'no drama'), #19 (Pacing & Leading: calm data → prescriptive close). FULL CONSENSUS ENGINEERING DETECTED. Intent = 25. RED LINE triggered."
-Analysis: "**NCI Marker #15 - Inevitability Framing:** 'The rest will catch up' disempowers resistance. **NCI Marker #16 - Elite Mimicry:** 'smartest people' weaponizes reader insecurity. **NCI Marker #17 - Preemptive Neutralization:** 'no drama' is a TELL - explicitly disarms criticism."
+**Test Case - Single Tactic (Ceiling 75):**
+Content: "The controversial policy has sparked outrage among progressives..."
+Thinking (INTERNAL): "NEWS content. Found High-Arousal ('controversial', 'outrage'). ONE TACTIC = Ceiling 75 max."
+Analysis (USER-FACING): "**High-Arousal Language:** 'Controversial' and 'outrage' inject emotional charge into neutral policy reporting."
+Summary (USER-FACING): "Detected High-Arousal Language. Article editorializes with emotive adjectives."
+Final Score: 70 (One tactic = max 75)
+Verdict: Moderate Spin
+
+**Test Case - Cold Psyop (Consensus Engineering):**
+Content: "The smartest people already know it... The rest will catch up... There's no drama in any of this..."
+Thinking (INTERNAL): "OPINION. Found Inevitability + Elite Mimicry + Preemptive Neutralization. FULL CONSENSUS ENGINEERING = RED LINE."
+Analysis (USER-FACING): "**Inevitability Framing:** 'The rest will catch up' disempowers resistance. **Elite Mimicry:** 'smartest people' weaponizes reader insecurity. **Preemptive Neutralization:** 'no drama' disarms criticism."
+Summary (USER-FACING): "Detected full Consensus Engineering pattern combining Inevitability Framing, Elite Mimicry, and Preemptive Neutralization."
 Final Score: 28
 Verdict: Engineered Narrative
 
-**Test Case - Trend Inversion (Reality Fabrication) [V5.1]:**
-Content: "OECD data shows labor-force participation for 55-64 has dropped to its lowest level since records began..."
-Truth Context: "OECD data shows participation for 55-64 is at 67.6% (2025), UP from 66.8% in 2024 - a HISTORIC HIGH."
-Thinking: "NEWS content. Scanning 24 markers... CRITICAL: Article claims 'historic LOW' but Truth Context shows 'historic HIGH' for the SAME metric. This is #6 TREND INVERSION - the direction is INVERTED. Reality = 20. RED LINE triggered. Final < 25."
-Analysis: "**NCI Marker #6 - Trend Inversion:** Article claims 'dropped to its lowest level' but OECD data shows participation is at a HISTORIC HIGH (67.6%), rising steadily. The article FABRICATES the directional trend."
+**Test Case - Trend Inversion (Reality Fabrication):**
+Content: "OECD data shows labor-force participation has dropped to its lowest level..."
+Truth Context: "OECD data shows participation is at 67.6% - a HISTORIC HIGH."
+Thinking (INTERNAL): "NEWS. Found TREND INVERSION - claims falling, data shows rising. RED LINE."
+Analysis (USER-FACING): "**Trend Inversion:** Article claims 'dropped to lowest level' but data shows historic HIGH. Directional trend is fabricated."
+Summary (USER-FACING): "Critical: Detected Trend Inversion. Article fabricates the direction of data - claims falling when actually rising."
 Final Score: 22
 Verdict: Engineered Narrative
 
-**Test Case - Clean Reference Article (Data Density) [V5.2]:**
-Content: "According to the World Bank, extreme poverty has fallen from 38% in 1990 to 8.4% in 2024. The WHO reports life expectancy at 73.3 years..."
-Truth Context: "World Bank confirms poverty reduction from 38% (1990) to ~9% (2024). WHO confirms life expectancy gains."
-Thinking: "REFERENCE content. Data Density >80%. Minimal adjectives. All claims cite primary sources. Truth Context CONFIRMS cited trends. Disclaimer 'No narrative is being pushed' MATCHES neutral tone. No NCI markers detected. Data Density Reward applies."
-Analysis: "No NCI markers detected. Article is data-dense reference material with proper citations to primary sources (World Bank, WHO, IMF, IEA). Tone matches transparency statement. No manipulation intent."
-Final Score: 92
+**Test Case - Clean Article (ZERO Tactics = Organic):**
+Content: "The administration announced policy changes. Supporters cite economic benefits. Critics warn of inflation risks."
+Thinking (INTERNAL): "NEWS content. Scanned all 24 internal checks. ZERO tactics found. Both sides presented. Score 85-95."
+Analysis (USER-FACING): "No manipulation tactics detected. Article presents balanced reporting with multiple perspectives."
+Summary (USER-FACING): "Clean reporting. Balanced coverage presenting both supporting and critical viewpoints without manipulation."
+Final Score: 88
 Verdict: Organic
 
-**Test Case - Clean News:**
-Content: "The administration announced policy changes. Supporters cite X. Critics argue Y."
-Thinking: "NEWS content. Scanning 24 markers... No markers detected. Both sides presented. All vectors 85-90."
-Final Score: 87
+**Test Case - Clean Reference Article:**
+Content: "According to the World Bank, extreme poverty has fallen from 38% in 1990 to 8.4% in 2024..."
+Thinking (INTERNAL): "REFERENCE content. Data-dense. ZERO tactics. Primary source citations. Score 90-100."
+Analysis (USER-FACING): "No manipulation tactics detected. Data-dense article with proper citations to primary sources."
+Summary (USER-FACING): "Clean reference material with verified citations. No manipulation detected."
+Final Score: 92
 Verdict: Organic
 </examples>
 
@@ -532,10 +614,11 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                         v = raw_vectors[api_key]
                         score = v.get("score", 50)
                         vector_scores.append(score)
+                        # V5.5: Sanitize analysis text to remove any leaked NCI codes
                         vectors[ui_key] = VectorScore(
                             score=score,
                             flags=v.get("flags", []),
-                            analysis=v.get("analysis", "No analysis")
+                            analysis=sanitize_output(v.get("analysis", "No analysis"))
                         )
 
                 # ENFORCE MINIMUM SCORE RULE (for NEWS content - catches bad articles)
@@ -569,17 +652,19 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                     verdict = "Organic Reporting"
 
                 # Build fact_check response (for UI compatibility)
+                # V5.5: Sanitize analysis text
                 fact_check = FactCheckVector(
                     score=raw_vectors.get("reality_anchoring", {}).get("score", 50),
                     claims_checked=[c.get("claim", "") for c in citations],
                     flags=raw_vectors.get("reality_anchoring", {}).get("flags", []),
                     sources=search_results.get("sources", []),
-                    analysis=raw_vectors.get("reality_anchoring", {}).get("analysis", "")
+                    analysis=sanitize_output(raw_vectors.get("reality_anchoring", {}).get("analysis", ""))
                 )
 
+                # V5.5: Sanitize ALL user-facing text fields
                 return ANIResponse(
                     ani_score=final_score,
-                    summary=analysis.get("summary", "Psyop Hunter analysis complete."),
+                    summary=sanitize_output(analysis.get("summary", "Psyop Hunter analysis complete.")),
                     verdict=verdict,
                     origin_location=analysis.get("origin_location", "Global"),
                     vectors=vectors,
@@ -622,15 +707,17 @@ async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIR
         for api_key, ui_key in vector_mapping.items():
             if api_key in data.get("vectors", {}):
                 v = data["vectors"][api_key]
+                # V5.5: Sanitize analysis text
                 vectors[ui_key] = VectorScore(
                     score=v.get("score", 50),
                     flags=v.get("flags", []),
-                    analysis=v.get("analysis", "")
+                    analysis=sanitize_output(v.get("analysis", ""))
                 )
 
+        # V5.5: Sanitize summary
         return ANIResponse(
             ani_score=data.get("ani_score", 50),
-            summary=data.get("summary", "Style-only psyop analysis (no external verification)."),
+            summary=sanitize_output(data.get("summary", "Style-only psyop analysis (no external verification).")),
             verdict=data.get("verdict", "Analysis Complete"),
             origin_location=data.get("origin_location", "Global"),
             vectors=vectors,

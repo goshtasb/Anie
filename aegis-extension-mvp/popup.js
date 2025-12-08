@@ -40,30 +40,70 @@ document.addEventListener('DOMContentLoaded', () => {
       showState('scanning');
       statusDiv.textContent = "Extracting text...";
 
-      // 2. Inject content.js to extract text
+      // 2. V2.2: Extract text with SPA hydration polling
+      // First attempt - run content.js immediately
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ['content.js']
-      }, (results) => {
+      }, async (results) => {
         if (chrome.runtime.lastError) {
           showError("Could not read page: " + chrome.runtime.lastError.message);
           return;
         }
 
-        if (!results || !results[0] || !results[0].result) {
+        if (!results || !results[0]) {
           showError("Could not read page content.");
           return;
         }
 
-        const articleData = results[0].result;
+        let articleData = results[0].result;
+        let wordCount = articleData?.text ? articleData.text.split(/\s+/).filter(w => w.length > 0).length : 0;
 
-        // Validate extracted data
-        if (!articleData.text || articleData.text.length < 300) {
-          showError("Not enough text to analyze (Minimum 300 words).");
+        // V2.2: SPA Hydration Retry - if first attempt yields low content, wait and retry
+        if (wordCount < 100) {
+          console.log(`Acuity: First attempt got ${wordCount} words, waiting for SPA hydration...`);
+          statusDiv.textContent = "Waiting for page to load...";
+
+          // Wait 2 seconds for React/Vue/Angular to hydrate
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Retry extraction
+          const retryResults = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['content.js']
+          });
+
+          if (retryResults && retryResults[0] && retryResults[0].result) {
+            const retryData = retryResults[0].result;
+            const retryWordCount = retryData?.text ? retryData.text.split(/\s+/).filter(w => w.length > 0).length : 0;
+            console.log(`Acuity: Retry got ${retryWordCount} words`);
+
+            // Use retry result if better
+            if (retryWordCount > wordCount) {
+              articleData = retryData;
+              wordCount = retryWordCount;
+            }
+          }
+        }
+
+        if (!articleData) {
+          showError("Could not read page content.");
           return;
         }
 
-        statusDiv.textContent = "Analyzing Narrative Integrity...";
+        // Final word count after potential retry
+        console.log('Acuity: Final extraction:', articleData.text?.length || 0, 'chars,', wordCount, 'words');
+
+        // V2.2: If client-side extraction fails (SPA/React sites), fall back to server-side scraping
+        // The backend will scrape the URL directly when text is insufficient
+        if (wordCount < 100) {
+          console.log('Acuity: Client extraction insufficient (' + wordCount + ' words), falling back to server-side scraping');
+          statusDiv.textContent = "Server-side extraction...";
+          // Clear the text so backend knows to scrape
+          articleData.text = "";
+        } else {
+          statusDiv.textContent = "Analyzing Narrative Integrity...";
+        }
 
         // 3. Send text to Background for API processing
         chrome.runtime.sendMessage({

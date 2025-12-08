@@ -1,106 +1,137 @@
-// content.js - Anie Surgical Text Extractor
+// content.js - Anie Robust Text Extractor with Safety Net Protocol
 // Strips ads, nav, comments, and noise to extract pure journalism
+// V2.2: 3-tier fallback + SPA retry support (retry handled by popup.js)
 
 (function() {
     /**
      * EXTRACT CANONICAL URL (The Universal ID)
-     * This is the "True Name" of the article, ignoring ?utm_source, ?ref, etc.
      */
     function getCanonicalUrl() {
-        // 1. Try the official canonical meta tag
         const canonical = document.querySelector('link[rel="canonical"]');
         if (canonical && canonical.href) return canonical.href;
 
-        // 2. Try Open Graph URL (common on news sites)
         const ogUrl = document.querySelector('meta[property="og:url"]');
         if (ogUrl && ogUrl.content) return ogUrl.content;
 
-        // 3. Fallback: Strip search params and hash from current URL
         return window.location.href.split('?')[0].split('#')[0];
     }
 
     /**
-     * SURGICAL TEXT EXTRACTION (The "Noise Filter")
-     * Clones the DOM and aggressively cuts out non-journalistic content.
+     * TEXT CLEANER
+     */
+    function cleanText(text) {
+        return text
+            .replace(/\t/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/\n\s*\n/g, '\n\n')
+            .trim();
+    }
+
+    /**
+     * ROBUST EXTRACTION - "THE SAFETY NET PROTOCOL"
+     * Plan A: Surgical (find article body)
+     * Plan B: Paragraph aggregation
+     * Plan C: Nuclear (raw body text)
      */
     function getMainContent() {
-        // 1. Clone the body so we don't break the user's visible page
         const clone = document.body.cloneNode(true);
 
-        // 2. Define the "Noise" Selectors (Ads, Nav, Popups, Clickbait)
+        // Remove noise elements
         const noiseSelectors = [
-            // Technical elements
             'script', 'style', 'noscript', 'iframe', 'svg', 'canvas',
-            // Structural noise
             'nav', 'footer', 'header', 'aside',
-            // Ad-related
             '.ad', '.ads', '.advertisement', '.ad-container', '.ad-wrapper',
             '[class*="advert"]', '[id*="advert"]',
-            // Social/sharing
             '.social-share', '.share-buttons', '.social-links',
-            // Comments
             '.comments', '.comment-section', '.disqus', '#comments',
-            // Related content (clickbait)
             '.related-articles', '.recommended', '.trending', '.popular',
-            // Popups and banners
             '.newsletter-signup', '.popup', '.modal', '.cookie-banner',
             '.subscription-prompt', '.paywall',
-            // ARIA hidden (invisible to users anyway)
             '[aria-hidden="true"]',
-            // Semantic roles for non-content
             '[role="complementary"]', '[role="navigation"]', '[role="banner"]',
             '[role="contentinfo"]',
-            // Stock tickers and financial widgets (real-time data, not article content)
             '[class*="stock"]', '[class*="ticker"]', '[class*="quote"]',
             '[class*="market"]', '[class*="price"]', '[class*="chart"]',
             '[data-symbol]', '[data-ticker]',
-            '.stock-widget', '.market-data', '.quote-widget',
-            '[class*="Stock"]', '[class*="Ticker"]', '[class*="Quote"]'
+            '.stock-widget', '.market-data', '.quote-widget'
         ];
 
-        // 3. Cut them out
         noiseSelectors.forEach(selector => {
             try {
-                const elements = clone.querySelectorAll(selector);
-                elements.forEach(el => el.remove());
-            } catch (e) {
-                // Invalid selector, skip
-            }
+                clone.querySelectorAll(selector).forEach(el => el.remove());
+            } catch (e) {}
         });
 
-        // 4. Identify the "Organ" (The actual Article Body)
-        // Priority order: most specific to least specific
-        const article = clone.querySelector('[itemprop="articleBody"]') ||
-                        clone.querySelector('article') ||
-                        clone.querySelector('.article-body') ||
-                        clone.querySelector('.story-body') ||
-                        clone.querySelector('.article-content') ||
-                        clone.querySelector('.post-content') ||
-                        clone.querySelector('.entry-content') ||
-                        clone.querySelector('main') ||
-                        clone;
+        // --- STRATEGY 1: SURGICAL ---
+        const articleSelectors = [
+            // Business Insider specific
+            '[data-component="text-block"]',
+            '[data-module="TextBlock"]',
+            '.content-lock-content',
+            '.article-body-content',
+            '.post-content-body',
+            '.premium-content',
+            '[class*="ArticleBody"]',
+            '[class*="articleBody"]',
+            '[class*="article-body"]',
+            '[class*="post-content"]',
+            // Standard semantic
+            '[itemprop="articleBody"]',
+            'article',
+            // Common CMS patterns
+            '.story-body', '.article-body', '.article-content',
+            '.post-content', '.entry-content', '#article-body',
+            '.main-content', '.article__body',
+            '[data-testid="article-body"]',
+            '.story-content', '.body-content',
+            // Structural
+            '[role="main"]', 'main', '#main-content', '#content'
+        ];
 
-        // 5. Extract and Normalize
-        let text = article.innerText || '';
+        let extractedText = "";
 
-        // Normalize whitespace
-        text = text
-            .replace(/\t/g, ' ')           // Replace tabs with spaces
-            .replace(/ +/g, ' ')           // Collapse multiple spaces
-            .replace(/\n\s*\n\s*\n/g, '\n\n') // Max 2 newlines
-            .trim();
+        for (const selector of articleSelectors) {
+            try {
+                const target = clone.querySelector(selector);
+                if (target && target.innerText && target.innerText.length > 500) {
+                    extractedText = target.innerText;
+                    console.log("Acuity: Surgical extraction via:", selector);
+                    break;
+                }
+            } catch (e) {}
+        }
 
-        return text;
+        // --- STRATEGY 2: PARAGRAPH AGGREGATION ---
+        if (extractedText.length < 500) {
+            console.log("Acuity: Surgical too short, trying paragraphs...");
+            const paragraphs = Array.from(clone.querySelectorAll('p'));
+            const goodParagraphs = paragraphs
+                .map(p => p.innerText.trim())
+                .filter(text => text.length > 40);
+
+            if (goodParagraphs.length > 0) {
+                extractedText = goodParagraphs.join('\n\n');
+                console.log("Acuity: Found", goodParagraphs.length, "paragraphs");
+            }
+        }
+
+        // --- STRATEGY 3: NUCLEAR ---
+        if (extractedText.length < 300) {
+            console.log("Acuity: Using raw body extraction");
+            extractedText = clone.innerText;
+        }
+
+        return cleanText(extractedText);
     }
 
-    // 6. Construct Payload
-    const payload = {
+    // Execute extraction
+    const content = getMainContent();
+    console.log("Acuity: Extracted", content.length, "chars");
+
+    return {
         url: getCanonicalUrl(),
         title: document.title,
         domain: window.location.hostname,
-        // Send the surgically cleaned text (max 15k chars)
-        text: getMainContent().substring(0, 15000)
+        text: content.substring(0, 15000)
     };
-
-    return payload;
 })();

@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.55"  # V5.2 Nuance Protocol: Complexity vs Fabrication
+API_VERSION = "1.0.59"  # V5.6 Sanitizer: Aggressive NCI removal (catches #X - patterns)
 
 @app.get("/")
 def health_check():
