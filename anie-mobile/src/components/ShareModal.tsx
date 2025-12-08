@@ -10,6 +10,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Share,
 } from 'react-native';
 import { Colors, ScanResult, getScoreColor, getScoreLabel } from '../types';
 import { scanUrl, extractDomain, extractUrlFromText, isValidUrl, askAnie, ChatTurn, sendFeedback } from '../utils/api';
@@ -177,6 +178,19 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
     setFeedbackState('idle');
     setSelectedReason(null);
     setAdditionalContext('');
+  };
+
+  // Share result via native share sheet
+  const handleShareResult = async () => {
+    if (!result) return;
+
+    try {
+      await Share.share({
+        message: `I just scanned this article with ACUITY:\n\nScore: ${result.ani_score}/100 - ${getScoreLabel(result.ani_score)}\n"${result.verdict}"\n\nCheck it yourself: https://anieai.netlify.app`,
+      });
+    } catch (error) {
+      console.error('[Share] Failed:', error);
+    }
   };
 
   return (
@@ -442,10 +456,15 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
                 </View>
               </View>
 
-              {/* Close Button */}
-              <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
-                <Text style={styles.doneText}>CLOSE DOSSIER</Text>
-              </TouchableOpacity>
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity style={styles.shareBtn} onPress={handleShareResult}>
+                  <Text style={styles.shareBtnText}>📤 SHARE RESULT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+                  <Text style={styles.doneText}>CLOSE</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -686,12 +705,30 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 6,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  shareBtn: {
+    flex: 1,
+    backgroundColor: Colors.accent,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  shareBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
   doneBtn: {
+    flex: 1,
     backgroundColor: '#333',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
   },
   doneText: {
     color: '#fff',
