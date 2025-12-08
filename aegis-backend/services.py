@@ -151,7 +151,17 @@ def clear_cache(url: str) -> bool:
 
 
 # --- DATA EXHAUST: Event Ledger ---
-def log_scan_event(user_id: str, url: str, score: int, action: str, origin_location: str, request_headers: dict):
+def log_scan_event(
+    user_id: str,
+    url: str,
+    score: int,
+    action: str,
+    origin_location: str,
+    request_headers: dict,
+    tracking_params: dict = None,
+    article_title: str = None,
+    vectors: dict = None
+):
     """
     Fire-and-forget logger for the 'Firehose' table.
     Captures EVERY interaction (cache hits + new scans) for analytics/B2B data.
@@ -160,7 +170,7 @@ def log_scan_event(user_id: str, url: str, score: int, action: str, origin_locat
     even if they're reading the same article.
 
     V4.1 Enterprise Data Hygiene: Stores url_hash for instant aggregation.
-    This allows B2B queries like "velocity by article" without text cleaning.
+    V4.6 Hard Data Pipeline: Adds tracking_payload, article_title, primary_vector.
     """
     if not supabase:
         return
@@ -183,6 +193,26 @@ def log_scan_event(user_id: str, url: str, score: int, action: str, origin_locat
         else:
             device_type = 'web'
 
+        # V4.6: Determine Primary Vector (The "Weapon" - lowest score = most manipulation)
+        primary_vector = None
+        if vectors:
+            vector_scores = {
+                'REALITY': vectors.get('reality', {}).get('score', 100),
+                'TRIBAL': vectors.get('tribal', {}).get('score', 100),
+                'NEURO': vectors.get('neuro', {}).get('score', 100),
+                'LOGIC': vectors.get('logic', {}).get('score', 100)
+            }
+            # Find the lowest score (most manipulation)
+            primary_vector = min(vector_scores, key=vector_scores.get)
+
+        # V4.6: Risk category from score
+        if score >= 70:
+            risk_category = 'LOW_RISK'
+        elif score >= 40:
+            risk_category = 'MEDIUM_RISK'
+        else:
+            risk_category = 'HIGH_MANIPULATION'
+
         supabase.table("scan_events").insert({
             "user_id": user_id or "anonymous",
             "url": url,                      # Raw URL for debugging
@@ -192,7 +222,12 @@ def log_scan_event(user_id: str, url: str, score: int, action: str, origin_locat
             "origin_location": origin_location,
             "geo_country": country,
             "device_type": device_type,
-            "meta": {"user_agent": user_agent[:500]}  # Truncate to avoid bloat
+            "meta": {"user_agent": user_agent[:500]},  # Truncate to avoid bloat
+            # V4.6 Hard Data Pipeline
+            "tracking_payload": tracking_params or {},
+            "article_title": (article_title or "Unknown")[:255],  # Truncate for safety
+            "primary_vector": primary_vector,
+            "risk_category": risk_category
         }).execute()
         # Silent success - no print to keep logs clean
     except Exception as e:

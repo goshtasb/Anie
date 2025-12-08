@@ -1,5 +1,6 @@
 # main.py
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse, parse_qs
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
@@ -19,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.61"  # V4.4 Silent Feedback: Thumbs up/down for training data
+API_VERSION = "1.0.62"  # V4.6 Hard Data Pipeline: Tracking params + context ledger
 
 @app.get("/")
 def health_check():
@@ -91,6 +92,16 @@ async def scan_endpoint(
     # Extract headers for analytics (run once, reuse)
     headers_dict = dict(request.headers)
 
+    # V4.6: Extract tracking params BEFORE nuclear hash strips them
+    # These are the "Data Exhaust" - utm_source, fbclid, gclid, etc.
+    try:
+        parsed_url = urlparse(payload.url)
+        raw_qs = parse_qs(parsed_url.query)
+        # Flatten: parse_qs returns lists, we want single values
+        tracking_params = {k: v[0] for k, v in raw_qs.items() if v}
+    except Exception:
+        tracking_params = {}
+
     # 1. CACHE CHECK (Canonical URL)
     # Frontend sends the stable canonical URL, not the dirty browser URL
     cached = services.check_cache(payload.url)
@@ -103,7 +114,10 @@ async def scan_endpoint(
             cached.get("ani_score", 0),
             "CACHE_HIT",
             cached.get("origin_location", "Global"),
-            headers_dict
+            headers_dict,
+            tracking_params,  # V4.6: Tracking data
+            cached.get("title", None),  # V4.6: Article title from cache
+            cached.get("vectors", None)  # V4.6: Vectors from cache
         )
         # V4.4: Inject url_hash for feedback association
         cached["url_hash"] = services.get_nuclear_hash(payload.url)
@@ -150,7 +164,10 @@ async def scan_endpoint(
         result.ani_score,
         "NEW_SCAN",
         result.origin_location,
-        headers_dict
+        headers_dict,
+        tracking_params,  # V4.6: Tracking data (utm_source, fbclid, etc.)
+        title,  # V4.6: Article title
+        result.vectors.model_dump() if result.vectors else None  # V4.6: Vectors for primary_vector calc
     )
 
     # V4.4: Inject url_hash for feedback association
