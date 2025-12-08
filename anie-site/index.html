@@ -188,6 +188,16 @@
         let currentAnalysis = '';
         let conversationHistory = [];
         let currentUrlHash = '';  // V4.4: For feedback association
+        let feedbackState = 'idle';  // V4.5: 'idle' | 'collecting' | 'submitted'
+        let selectedReason = null;
+
+        // V4.5 Deep Capture: Error categories mapping to engine vectors
+        const FEEDBACK_REASONS = [
+            { label: "Factually Wrong", code: "ERR_REALITY", desc: "Wrong numbers or sources" },
+            { label: "Missed Sarcasm/Satire", code: "ERR_CONTEXT", desc: "It's a joke or nuance" },
+            { label: "False Alarm", code: "ERR_FALSE_POS", desc: "Article is actually clean" },
+            { label: "Missed Manipulation", code: "ERR_FALSE_NEG", desc: "It's toxic but got a pass" },
+        ];
 
         // EXPANDED STATUS MESSAGES (The "Forensic Journey" - covers ~30s without looping)
         const loadingMessages = [
@@ -321,12 +331,14 @@
                     </div>
                 `;
 
-                // V4.4: Feedback buttons HTML
+                // V4.5: Deep Capture feedback HTML
+                feedbackState = 'idle';
+                selectedReason = null;
                 const feedbackHTML = `
                     <div class="feedback-container" id="feedbackContainer">
                         <span class="feedback-label">Was this analysis helpful?</span>
-                        <button class="feedback-btn" id="feedbackUp" onclick="sendFeedback('UP')">👍</button>
-                        <button class="feedback-btn" id="feedbackDown" onclick="sendFeedback('DOWN')">👎</button>
+                        <button class="feedback-btn" id="feedbackUp" onclick="handleThumbsUp()">👍</button>
+                        <button class="feedback-btn" id="feedbackDown" onclick="handleThumbsDown()">👎</button>
                     </div>
                 `;
 
@@ -462,23 +474,98 @@
         }
 
         // ============================================================
-        // V4.4 SILENT FEEDBACK: Thumbs Up/Down
+        // V4.5 DEEP CAPTURE PROTOCOL: Enhanced Feedback Collection
         // ============================================================
 
-        // NOTE: This function must be in global scope for onclick handlers
-        window.sendFeedback = async function(vote) {
-            if (!currentUrlHash) {
-                console.log('No url_hash available for feedback');
-                return;
-            }
+        // Thumbs Up: Simple, immediate submission
+        window.handleThumbsUp = async function() {
+            if (!currentUrlHash || feedbackState !== 'idle') return;
 
             const container = document.getElementById('feedbackContainer');
-            const upBtn = document.getElementById('feedbackUp');
-            const downBtn = document.getElementById('feedbackDown');
+            try {
+                const response = await fetch(FEEDBACK_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url_hash: currentUrlHash, vote: 'UP' })
+                });
 
-            // Disable buttons immediately to prevent double-clicks
-            if (upBtn) upBtn.disabled = true;
-            if (downBtn) downBtn.disabled = true;
+                if (response.ok) {
+                    feedbackState = 'submitted';
+                    container.innerHTML = `<span class="feedback-thanks">Thanks for your feedback!</span>`;
+                }
+            } catch (e) {
+                console.log('Feedback error:', e);
+            }
+        };
+
+        // Thumbs Down: Open Deep Capture modal
+        window.handleThumbsDown = function() {
+            if (!currentUrlHash || feedbackState !== 'idle') return;
+
+            feedbackState = 'collecting';
+            const container = document.getElementById('feedbackContainer');
+
+            // Build reason buttons HTML
+            const reasonsHTML = FEEDBACK_REASONS.map(r => `
+                <button class="reason-btn" data-code="${r.code}" onclick="selectReason('${r.code}')">
+                    <span class="reason-label">${r.label}</span>
+                    <span class="reason-desc">${r.desc}</span>
+                </button>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="deep-capture-container">
+                    <div class="deep-capture-title">What went wrong?</div>
+                    <div class="reason-grid">${reasonsHTML}</div>
+                    <textarea class="context-input" id="contextInput" placeholder="Tell us more (optional)..." maxlength="500"></textarea>
+                    <div class="deep-capture-actions">
+                        <button class="cancel-btn" onclick="cancelFeedback()">Cancel</button>
+                        <button class="submit-btn" id="submitBtn" onclick="submitDownvote()" disabled>Submit</button>
+                    </div>
+                </div>
+            `;
+        };
+
+        // Select a reason category
+        window.selectReason = function(code) {
+            selectedReason = code;
+            // Update button styles
+            document.querySelectorAll('.reason-btn').forEach(btn => {
+                if (btn.dataset.code === code) {
+                    btn.classList.add('reason-btn-selected');
+                } else {
+                    btn.classList.remove('reason-btn-selected');
+                }
+            });
+            // Enable submit button
+            document.getElementById('submitBtn').disabled = false;
+        };
+
+        // Cancel and return to idle state
+        window.cancelFeedback = function() {
+            feedbackState = 'idle';
+            selectedReason = null;
+            const container = document.getElementById('feedbackContainer');
+            container.innerHTML = `
+                <span class="feedback-label">Was this analysis helpful?</span>
+                <button class="feedback-btn" onclick="handleThumbsUp()">👍</button>
+                <button class="feedback-btn" onclick="handleThumbsDown()">👎</button>
+            `;
+        };
+
+        // Submit the downvote with reason
+        window.submitDownvote = async function() {
+            if (!currentUrlHash || !selectedReason) return;
+
+            const contextInput = document.getElementById('contextInput');
+            const additionalContext = contextInput ? contextInput.value.trim() : '';
+
+            // Build reason string: CODE + optional context
+            const reasonString = additionalContext
+                ? `${selectedReason}: ${additionalContext}`
+                : selectedReason;
+
+            const container = document.getElementById('feedbackContainer');
 
             try {
                 const response = await fetch(FEEDBACK_URL, {
@@ -486,26 +573,17 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         url_hash: currentUrlHash,
-                        vote: vote
+                        vote: 'DOWN',
+                        reason: reasonString
                     })
                 });
 
                 if (response.ok) {
-                    // Replace buttons with thank you message
-                    if (container) {
-                        container.innerHTML = `<span class="feedback-thanks">Thanks for your feedback!</span>`;
-                    }
-                } else {
-                    console.log('Feedback submission failed');
-                    // Re-enable buttons on failure
-                    if (upBtn) upBtn.disabled = false;
-                    if (downBtn) downBtn.disabled = false;
+                    feedbackState = 'submitted';
+                    container.innerHTML = `<span class="feedback-thanks">Thanks for your feedback!</span>`;
                 }
             } catch (e) {
                 console.log('Feedback error:', e);
-                // Re-enable buttons on error
-                if (upBtn) upBtn.disabled = false;
-                if (downBtn) downBtn.disabled = false;
             }
         }
     </script>

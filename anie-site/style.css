@@ -775,3 +775,138 @@ footer {
     font-size: 0.85rem;
     font-family: var(--font-display);
 }
+
+/* ============================================
+   V4.5 DEEP CAPTURE PROTOCOL - Reason Collection
+   ============================================ */
+.deep-capture-container {
+    width: 100%;
+    padding: 12px 0;
+}
+
+.deep-capture-title {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    color: #ff4444;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.reason-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.reason-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.reason-btn:hover {
+    border-color: #555;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.reason-btn-selected {
+    border-color: #ff4444;
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.reason-label {
+    display: block;
+    color: #ccc;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.reason-btn-selected .reason-label {
+    color: #ff4444;
+}
+
+.reason-desc {
+    display: block;
+    color: #666;
+    font-size: 0.7rem;
+}
+
+.context-input {
+    width: 100%;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    color: #fff;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    min-height: 60px;
+    resize: vertical;
+    margin-bottom: 12px;
+}
+
+.context-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.context-input::placeholder {
+    color: #555;
+}
+
+.deep-capture-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.cancel-btn {
+    flex: 1;
+    background: #222;
+    border: none;
+    color: #888;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+    background: #333;
+    color: #fff;
+}
+
+.submit-btn {
+    flex: 1;
+    background: #ff4444;
+    border: none;
+    color: #fff;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.submit-btn:hover:not(:disabled) {
+    background: #ff6666;
+}
+
+.submit-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Mobile adjustments for Deep Capture */
+@media (max-width: 768px) {
+    .reason-grid {
+        grid-template-columns: 1fr;
+    }
+}

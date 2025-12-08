@@ -41,8 +41,18 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
   ]);
   const chatScrollRef = useRef<ScrollView>(null);
 
-  // V4.4 Feedback state
-  const [feedbackSent, setFeedbackSent] = useState(false);
+  // V4.4 Feedback state - Deep Capture Protocol
+  const [feedbackState, setFeedbackState] = useState<'idle' | 'collecting' | 'submitted'>('idle');
+  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [additionalContext, setAdditionalContext] = useState('');
+
+  // Error categories mapping to engine vectors
+  const FEEDBACK_REASONS = [
+    { label: "Factually Wrong", code: "ERR_REALITY", desc: "Wrong numbers or sources" },
+    { label: "Missed Sarcasm/Satire", code: "ERR_CONTEXT", desc: "It's a joke or nuance" },
+    { label: "False Alarm", code: "ERR_FALSE_POS", desc: "Article is actually clean" },
+    { label: "Missed Manipulation", code: "ERR_FALSE_NEG", desc: "It's toxic but got a pass" },
+  ];
 
   useEffect(() => {
     async function analyze() {
@@ -134,14 +144,39 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
     }
   };
 
-  // V4.4 Feedback handler
-  const handleFeedback = async (vote: 'UP' | 'DOWN') => {
-    if (!result?.url_hash || feedbackSent) return;
-
-    const success = await sendFeedback(result.url_hash, vote);
+  // V4.4 Feedback handler - Deep Capture Protocol
+  const handleThumbsUp = async () => {
+    if (!result?.url_hash || feedbackState !== 'idle') return;
+    const success = await sendFeedback(result.url_hash, 'UP');
     if (success) {
-      setFeedbackSent(true);
+      setFeedbackState('submitted');
     }
+  };
+
+  const handleThumbsDown = () => {
+    if (!result?.url_hash || feedbackState !== 'idle') return;
+    // Don't send yet - open the reason collector
+    setFeedbackState('collecting');
+  };
+
+  const handleSubmitDownvote = async () => {
+    if (!result?.url_hash || !selectedReason) return;
+
+    // Build reason string: CODE + optional context
+    const reasonString = additionalContext.trim()
+      ? `${selectedReason}: ${additionalContext.trim()}`
+      : selectedReason;
+
+    const success = await sendFeedback(result.url_hash, 'DOWN', reasonString);
+    if (success) {
+      setFeedbackState('submitted');
+    }
+  };
+
+  const handleCancelFeedback = () => {
+    setFeedbackState('idle');
+    setSelectedReason(null);
+    setAdditionalContext('');
   };
 
   return (
@@ -209,23 +244,62 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
               {/* Verdict */}
               <Text style={styles.verdict}>{result.verdict}</Text>
 
-              {/* V4.4 Feedback UI */}
+              {/* V4.4 Feedback UI - Deep Capture Protocol */}
               <View style={styles.feedbackContainer}>
-                {feedbackSent ? (
+                {feedbackState === 'submitted' ? (
                   <Text style={styles.feedbackThanks}>Thanks for your feedback!</Text>
+                ) : feedbackState === 'collecting' ? (
+                  // Deep Capture: Reason Selection
+                  <View style={styles.deepCaptureContainer}>
+                    <Text style={styles.deepCaptureTitle}>What went wrong?</Text>
+                    <View style={styles.reasonGrid}>
+                      {FEEDBACK_REASONS.map((reason) => (
+                        <TouchableOpacity
+                          key={reason.code}
+                          style={[
+                            styles.reasonBtn,
+                            selectedReason === reason.code && styles.reasonBtnSelected,
+                          ]}
+                          onPress={() => setSelectedReason(reason.code)}
+                        >
+                          <Text style={[
+                            styles.reasonLabel,
+                            selectedReason === reason.code && styles.reasonLabelSelected,
+                          ]}>{reason.label}</Text>
+                          <Text style={styles.reasonDesc}>{reason.desc}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TextInput
+                      style={styles.contextInput}
+                      placeholder="Tell us more (optional)..."
+                      placeholderTextColor="#555"
+                      value={additionalContext}
+                      onChangeText={setAdditionalContext}
+                      multiline
+                      maxLength={500}
+                    />
+                    <View style={styles.deepCaptureActions}>
+                      <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelFeedback}>
+                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.submitBtn, !selectedReason && styles.submitBtnDisabled]}
+                        onPress={handleSubmitDownvote}
+                        disabled={!selectedReason}
+                      >
+                        <Text style={styles.submitBtnText}>Submit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 ) : (
+                  // Initial state: thumbs up/down
                   <>
                     <Text style={styles.feedbackLabel}>Was this helpful?</Text>
-                    <TouchableOpacity
-                      style={styles.feedbackBtn}
-                      onPress={() => handleFeedback('UP')}
-                    >
+                    <TouchableOpacity style={styles.feedbackBtn} onPress={handleThumbsUp}>
                       <Text style={styles.feedbackEmoji}>👍</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.feedbackBtn}
-                      onPress={() => handleFeedback('DOWN')}
-                    >
+                    <TouchableOpacity style={styles.feedbackBtn} onPress={handleThumbsDown}>
                       <Text style={styles.feedbackEmoji}>👎</Text>
                     </TouchableOpacity>
                   </>
@@ -740,5 +814,94 @@ const styles = StyleSheet.create({
     color: Colors.safe,
     fontSize: 12,
     fontFamily: 'Menlo',
+  },
+  // Deep Capture Protocol Styles
+  deepCaptureContainer: {
+    width: '100%',
+    paddingVertical: 12,
+  },
+  deepCaptureTitle: {
+    fontFamily: 'Menlo',
+    fontSize: 12,
+    color: Colors.critical,
+    letterSpacing: 1,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  reasonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reasonBtn: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    padding: 10,
+  },
+  reasonBtnSelected: {
+    borderColor: Colors.critical,
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+  },
+  reasonLabel: {
+    color: '#ccc',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  reasonLabelSelected: {
+    color: Colors.critical,
+  },
+  reasonDesc: {
+    color: '#666',
+    fontSize: 10,
+  },
+  contextInput: {
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 13,
+    minHeight: 60,
+    textAlignVertical: 'top',
+    marginBottom: 12,
+  },
+  deepCaptureActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    backgroundColor: '#222',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: '#888',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  submitBtn: {
+    flex: 1,
+    backgroundColor: Colors.critical,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitBtnDisabled: {
+    opacity: 0.4,
+  },
+  submitBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });

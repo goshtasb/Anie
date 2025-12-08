@@ -1,8 +1,14 @@
 // popup.js
+const FEEDBACK_URL = 'https://aegis-alpha.onrender.com/v1/feedback';
+
 document.addEventListener('DOMContentLoaded', () => {
   const scanBtn = document.getElementById('scan-btn');
   const statusDiv = document.getElementById('status');
   const creditsSpan = document.getElementById('credits');
+
+  // V4.5 Deep Capture: Track current scan's url_hash and feedback state
+  let currentUrlHash = null;
+  let selectedReason = null;
 
   // State management
   const states = {
@@ -144,6 +150,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Dossier renderer
   function renderDossier(data) {
+    // V4.5: Store url_hash for feedback
+    currentUrlHash = data.url_hash || null;
+    selectedReason = null;
+    resetFeedbackUI();
+
     // Update credits display first
     chrome.storage.local.get(['credits'], (result) => {
       const credits = result.credits || 0;
@@ -620,4 +631,103 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   observer.observe(states.scanning, { attributes: true, attributeFilter: ['class'] });
+
+  // ============================================================
+  // V4.5 DEEP CAPTURE PROTOCOL: Feedback Handlers
+  // ============================================================
+
+  function resetFeedbackUI() {
+    const idle = document.getElementById('feedback-idle');
+    const collecting = document.getElementById('feedback-collecting');
+    const thanks = document.getElementById('feedback-thanks');
+
+    if (idle) idle.classList.remove('hidden');
+    if (collecting) collecting.classList.add('hidden');
+    if (thanks) thanks.classList.add('hidden');
+
+    // Clear selections
+    document.querySelectorAll('.reason-btn').forEach(btn => btn.classList.remove('selected'));
+    const contextInput = document.getElementById('context-input');
+    if (contextInput) contextInput.value = '';
+    const submitBtn = document.getElementById('btn-submit');
+    if (submitBtn) submitBtn.disabled = true;
+  }
+
+  // Thumbs Up: Simple, immediate submission
+  document.getElementById('btn-up')?.addEventListener('click', async () => {
+    if (!currentUrlHash) return;
+
+    try {
+      const response = await fetch(FEEDBACK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url_hash: currentUrlHash, vote: 'UP' })
+      });
+
+      if (response.ok) {
+        document.getElementById('feedback-idle').classList.add('hidden');
+        document.getElementById('feedback-thanks').classList.remove('hidden');
+      }
+    } catch (e) {
+      console.log('Feedback error:', e);
+    }
+  });
+
+  // Thumbs Down: Open Deep Capture panel
+  document.getElementById('btn-down')?.addEventListener('click', () => {
+    if (!currentUrlHash) return;
+
+    document.getElementById('feedback-idle').classList.add('hidden');
+    document.getElementById('feedback-collecting').classList.remove('hidden');
+  });
+
+  // Reason selection
+  document.querySelectorAll('.reason-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedReason = btn.dataset.code;
+      // Update button styles
+      document.querySelectorAll('.reason-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      // Enable submit button
+      document.getElementById('btn-submit').disabled = false;
+    });
+  });
+
+  // Cancel button
+  document.getElementById('btn-cancel')?.addEventListener('click', () => {
+    selectedReason = null;
+    resetFeedbackUI();
+  });
+
+  // Submit downvote with reason
+  document.getElementById('btn-submit')?.addEventListener('click', async () => {
+    if (!currentUrlHash || !selectedReason) return;
+
+    const contextInput = document.getElementById('context-input');
+    const additionalContext = contextInput ? contextInput.value.trim() : '';
+
+    // Build reason string: CODE + optional context
+    const reasonString = additionalContext
+      ? `${selectedReason}: ${additionalContext}`
+      : selectedReason;
+
+    try {
+      const response = await fetch(FEEDBACK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url_hash: currentUrlHash,
+          vote: 'DOWN',
+          reason: reasonString
+        })
+      });
+
+      if (response.ok) {
+        document.getElementById('feedback-collecting').classList.add('hidden');
+        document.getElementById('feedback-thanks').classList.remove('hidden');
+      }
+    } catch (e) {
+      console.log('Feedback error:', e);
+    }
+  });
 });

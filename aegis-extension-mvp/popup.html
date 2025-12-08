@@ -389,6 +389,173 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        /* V4.5 Deep Capture Feedback Styles */
+        .feedback-section {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #1e293b;
+        }
+
+        .feedback-idle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .feedback-label {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .feedback-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid #334155;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .feedback-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+            transform: scale(1.1);
+        }
+
+        .feedback-collecting {
+            padding: 8px 0;
+        }
+
+        .deep-capture-title {
+            color: #ef4444;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .reason-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .reason-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .reason-btn:hover {
+            border-color: #475569;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .reason-btn.selected {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .reason-label {
+            display: block;
+            color: #e2e8f0;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .reason-btn.selected .reason-label {
+            color: #ef4444;
+        }
+
+        .reason-desc {
+            display: block;
+            color: #64748b;
+            font-size: 9px;
+        }
+
+        .context-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px;
+            color: #f8fafc;
+            font-size: 12px;
+            min-height: 50px;
+            resize: none;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+
+        .context-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .context-input::placeholder {
+            color: #475569;
+        }
+
+        .deep-capture-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .cancel-btn {
+            flex: 1;
+            background: #1e293b;
+            border: none;
+            color: #94a3b8;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .cancel-btn:hover {
+            background: #334155;
+            color: #f8fafc;
+        }
+
+        .submit-btn {
+            flex: 1;
+            background: #ef4444;
+            border: none;
+            color: #fff;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            background: #f87171;
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .feedback-thanks {
+            color: #22c55e;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            padding: 8px 0;
+        }
     </style>
 </head>
 <body>
@@ -426,6 +593,42 @@
 
                 <!-- Evidence Locker -->
                 <div id="evidence-locker" class="evidence-locker"></div>
+
+                <!-- V4.5 Deep Capture Feedback -->
+                <div id="feedback-section" class="feedback-section">
+                    <div id="feedback-idle" class="feedback-idle">
+                        <span class="feedback-label">Was this helpful?</span>
+                        <button id="btn-up" class="feedback-btn">👍</button>
+                        <button id="btn-down" class="feedback-btn">👎</button>
+                    </div>
+                    <div id="feedback-collecting" class="feedback-collecting hidden">
+                        <div class="deep-capture-title">What went wrong?</div>
+                        <div class="reason-grid">
+                            <button class="reason-btn" data-code="ERR_REALITY">
+                                <span class="reason-label">Factually Wrong</span>
+                                <span class="reason-desc">Wrong numbers or sources</span>
+                            </button>
+                            <button class="reason-btn" data-code="ERR_CONTEXT">
+                                <span class="reason-label">Missed Sarcasm</span>
+                                <span class="reason-desc">It's a joke or nuance</span>
+                            </button>
+                            <button class="reason-btn" data-code="ERR_FALSE_POS">
+                                <span class="reason-label">False Alarm</span>
+                                <span class="reason-desc">Article is clean</span>
+                            </button>
+                            <button class="reason-btn" data-code="ERR_FALSE_NEG">
+                                <span class="reason-label">Missed Manipulation</span>
+                                <span class="reason-desc">It's toxic but got a pass</span>
+                            </button>
+                        </div>
+                        <textarea id="context-input" class="context-input" placeholder="Tell us more (optional)..." maxlength="500"></textarea>
+                        <div class="deep-capture-actions">
+                            <button id="btn-cancel" class="cancel-btn">Cancel</button>
+                            <button id="btn-submit" class="submit-btn" disabled>Submit</button>
+                        </div>
+                    </div>
+                    <div id="feedback-thanks" class="feedback-thanks hidden">Thanks for your feedback!</div>
+                </div>
 
                 <button id="scan-next" class="scan-button" style="width: 100%; height: auto; border-radius: 8px; padding: 12px; font-size: 14px; margin-top: 20px;">
                     Scan Next
