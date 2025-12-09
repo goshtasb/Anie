@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.64"  # V4.7: 60s timeout for Grok (was timing out at 10s default)
+API_VERSION = "1.0.65"  # V4.7: 60s timeout for Grok (was timing out at 10s default)
 
 @app.get("/")
 def health_check():
