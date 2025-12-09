@@ -1,5 +1,6 @@
 # main.py
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse, parse_qs
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
@@ -19,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.70"  # V4.7.3: Add cache debug endpoint + mark cache hits
+API_VERSION = "1.0.71"  # V4.8: Safe B2B enrichment (tracking, title, primary_vector, risk_category)
 
 @app.get("/")
 def health_check():
@@ -118,10 +119,17 @@ async def scan_endpoint(
     # Extract headers for analytics
     headers_dict = dict(request.headers)
 
+    # V4.8: Extract tracking params for B2B enrichment (UTM, ref, etc.)
+    try:
+        parsed_url = urlparse(payload.url)
+        tracking_params = {k: v[0] for k, v in parse_qs(parsed_url.query).items()}
+    except Exception:
+        tracking_params = {}
+
     # 1. CACHE CHECK (Nuclear hash strips all tracking params)
     cached = services.check_cache(payload.url)
     if cached:
-        # LOG CACHE HIT (Background)
+        # LOG CACHE HIT (Background) - V4.8: Include enrichment data
         background_tasks.add_task(
             services.log_scan_event,
             x_user_id,
@@ -129,7 +137,10 @@ async def scan_endpoint(
             cached.get("ani_score", 0),
             "CACHE_HIT",
             cached.get("origin_location", "Global"),
-            headers_dict
+            headers_dict,
+            tracking_params,  # V4.8: B2B tracking
+            None,  # article_title (not available for cache hits)
+            cached.get("vectors")  # V4.8: Vectors for primary_vector calc
         )
         # V4.4: Inject url_hash for feedback association
         cached["url_hash"] = services.get_nuclear_hash(payload.url)
@@ -167,7 +178,13 @@ async def scan_endpoint(
     # 5. SAVE TO CACHE (Canonical URL)
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
 
-    # 6. LOG NEW SCAN EVENT (Background)
+    # 6. LOG NEW SCAN EVENT (Background) - V4.8: Include enrichment data
+    # Convert vectors to dict for logging
+    vectors_dict = None
+    if result.vectors:
+        vectors_dict = {k: {"score": v.score, "flags": v.flags, "analysis": v.analysis}
+                        for k, v in result.vectors.items()}
+
     background_tasks.add_task(
         services.log_scan_event,
         x_user_id,
@@ -175,7 +192,10 @@ async def scan_endpoint(
         result.ani_score,
         "NEW_SCAN",
         result.origin_location,
-        headers_dict
+        headers_dict,
+        tracking_params,  # V4.8: B2B tracking
+        title,  # V4.8: Article title
+        vectors_dict  # V4.8: Vectors for primary_vector calc
     )
 
     # V4.4: Inject url_hash for feedback association

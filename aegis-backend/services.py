@@ -167,11 +167,10 @@ def log_scan_event(
     vectors: dict = None
 ):
     """
-    Fire-and-forget logger for the 'Firehose' table.
-    Captures EVERY interaction (cache hits + new scans) for analytics/B2B data.
+    V4.8 Safe Logger with B2B Data Enrichment.
 
-    V4.1 Enterprise Data Hygiene: Stores url_hash for instant aggregation.
-    V4.7 ROLLBACK: Removed V4.6 fields that may not exist in table.
+    Captures EVERY interaction (cache hits + new scans) for analytics/B2B data.
+    B2B enrichment is wrapped in safety layer - if it fails, base event still logs.
     """
     if not supabase:
         return
@@ -193,8 +192,8 @@ def log_scan_event(
         else:
             device_type = 'web'
 
-        # V4.7: Core fields only - no V4.6 experimental fields
-        supabase.table("scan_events").insert({
+        # BASE PAYLOAD (CRITICAL - This must succeed)
+        data_payload = {
             "user_id": user_id or "anonymous",
             "url": url,
             "url_hash": url_hash,
@@ -204,8 +203,55 @@ def log_scan_event(
             "geo_country": country,
             "device_type": device_type,
             "meta": {"user_agent": user_agent[:500]}
-        }).execute()
+        }
+
+        # V4.8 B2B ENRICHMENT (EXPERIMENTAL - Wrapped in Safety Layer)
+        try:
+            enrichment = {}
+
+            # Tracking params (UTM, ref, etc.)
+            if tracking_params:
+                enrichment["tracking_payload"] = tracking_params
+
+            # Article title
+            if article_title:
+                enrichment["article_title"] = article_title[:255]
+
+            # Primary vector calculation (find weakest vector = main manipulation type)
+            if vectors:
+                vector_scores = {
+                    'REALITY': vectors.get('reality', {}).get('score', 100),
+                    'TRIBAL': vectors.get('tribal', {}).get('score', 100),
+                    'NEURO': vectors.get('neuro', {}).get('score', 100),
+                    'LOGIC': vectors.get('logic', {}).get('score', 100)
+                }
+                primary_vector = min(vector_scores, key=vector_scores.get)
+                enrichment["primary_vector"] = primary_vector
+
+            # Risk category
+            if score < 40:
+                enrichment["risk_category"] = "HIGH_MANIPULATION"
+            elif score < 70:
+                enrichment["risk_category"] = "MEDIUM_RISK"
+            else:
+                enrichment["risk_category"] = "LOW_RISK"
+
+            # Merge enrichment into meta (safe - doesn't require new DB columns)
+            if enrichment:
+                data_payload["meta"] = {
+                    **data_payload.get("meta", {}),
+                    "b2b": enrichment
+                }
+                print(f"📊 V4.8 Enriched: {enrichment.get('risk_category', 'N/A')} | {enrichment.get('primary_vector', 'N/A')}")
+
+        except Exception as enrichment_error:
+            # IF ENRICHMENT FAILS: Log warning but CONTINUE with base payload
+            print(f"⚠️ V4.8 Enrichment Skipped: {enrichment_error}")
+
+        # EXECUTE THE WRITE
+        supabase.table("scan_events").insert(data_payload).execute()
         print(f"✅ Event logged: {action} score={score}")
+
     except Exception as e:
         import traceback
         print(f"❌ Event Log FAILED: {e}")
