@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.62"  # V4.6 Hard Data Pipeline: Tracking params + context ledger
+API_VERSION = "1.0.63"  # V4.6 Fix: Handle vectors dict/model serialization
 
 @app.get("/")
 def health_check():
