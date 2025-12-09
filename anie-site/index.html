@@ -39,6 +39,23 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
 
+    <!-- Organization Schema with Logo for Search Results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Acuity Narrative Integrity Engine",
+      "alternateName": ["Acuity", "ANIE", "Anie"],
+      "url": "https://anieai.netlify.app",
+      "logo": "https://anieai.netlify.app/icons/128.png",
+      "image": "https://anieai.netlify.app/icons/128.png",
+      "sameAs": [
+        "https://chrome.google.com/webstore/detail/acuity"
+      ],
+      "description": "AI-powered forensic analysis tool for detecting narrative manipulation in news and media."
+    }
+    </script>
+
     <!-- JSON-LD Structured Data for AI/Search Engines -->
     <script type="application/ld+json">
     {
@@ -48,6 +65,7 @@
       "alternateName": "Anie",
       "applicationCategory": "UtilityApplication",
       "operatingSystem": "Chrome, iOS, Android, Web",
+      "image": "https://anieai.netlify.app/icons/128.png",
       "offers": {
         "@type": "Offer",
         "price": "0",
@@ -64,7 +82,8 @@
       "author": {
         "@type": "Organization",
         "name": "Acuity Intelligence",
-        "url": "https://anieai.netlify.app"
+        "url": "https://anieai.netlify.app",
+        "logo": "https://anieai.netlify.app/icons/128.png"
       },
       "aggregateRating": {
         "@type": "AggregateRating",
