@@ -1,11 +1,11 @@
 # Acuity Narrative Integrity Engine
-# https://anieai.netlify.app
+# https://www.goanie.com
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://anieai.netlify.app/sitemap.xml
+Sitemap: https://www.goanie.com/sitemap.xml
 
 # Allow AI crawlers
 User-agent: GPTBot

@@ -194,7 +194,7 @@ export function MainDashboard() {
       {/* Settings Link */}
       <TouchableOpacity
         style={styles.settingsLink}
-        onPress={() => Linking.openURL('https://anieai.netlify.app/privacy.html')}
+        onPress={() => Linking.openURL('https://www.goanie.com/privacy.html')}
       >
         <Text style={styles.settingsText}>Privacy Policy</Text>
       </TouchableOpacity>

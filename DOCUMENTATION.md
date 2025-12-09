@@ -62,7 +62,7 @@ Acuity (Acuity Narrative Integrity Engine, also known as A.N.I.E.) is an AI-powe
 │                           FRONTEND CLIENTS                               │
 ├──────────────────┬─────────────────────┬────────────────────────────────┤
 │   Chrome         │    iOS/Android      │         Website                │
-│   Extension      │    Mobile App       │    (anieai.netlify.app)        │
+│   Extension      │    Mobile App       │    (www.goanie.com)        │
 │   (popup.html)   │   (React Native)    │      (index.html)              │
 └────────┬─────────┴──────────┬──────────┴─────────────┬──────────────────┘
          │                    │                        │
@@ -265,7 +265,7 @@ WEAKEST LINK RULE:
 
 ### 1. Website (anie-site/)
 
-**URL:** https://anieai.netlify.app
+**URL:** https://www.goanie.com
 
 **Features:**
 - URL input scanner
@@ -523,7 +523,7 @@ services:
 
 ### Website (Netlify)
 
-**URL:** https://anieai.netlify.app
+**URL:** https://www.goanie.com
 
 Static files deployed directly to Netlify CDN.
 
@@ -693,7 +693,7 @@ FIRECRAWL_API_KEY=fc-your-key
 ## Contact
 
 - **Email:** musickong@gmail.com
-- **Website:** https://anieai.netlify.app
+- **Website:** https://www.goanie.com
 
 ---
 

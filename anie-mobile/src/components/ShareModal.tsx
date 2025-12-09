@@ -186,7 +186,7 @@ export function ShareModal({ intentValue, intentType, onClose }: ShareModalProps
 
     try {
       await Share.share({
-        message: `I just scanned this article with ACUITY:\n\nScore: ${result.ani_score}/100 - ${getScoreLabel(result.ani_score)}\n"${result.verdict}"\n\nCheck it yourself: https://anieai.netlify.app`,
+        message: `I just scanned this article with ACUITY:\n\nScore: ${result.ani_score}/100 - ${getScoreLabel(result.ani_score)}\n"${result.verdict}"\n\nCheck it yourself: https://www.goanie.com`,
       });
     } catch (error) {
       console.error('[Share] Failed:', error);
