@@ -157,6 +157,11 @@ async def scan_endpoint(
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
 
     # 6. LOG NEW SCAN EVENT (Background - the Firehose)
+    # V4.6: vectors may be dict or Pydantic model depending on path
+    vectors_dict = None
+    if result.vectors:
+        vectors_dict = result.vectors if isinstance(result.vectors, dict) else {k: v.model_dump() if hasattr(v, 'model_dump') else v for k, v in result.vectors.items()}
+
     background_tasks.add_task(
         services.log_scan_event,
         x_user_id,
@@ -167,7 +172,7 @@ async def scan_endpoint(
         headers_dict,
         tracking_params,  # V4.6: Tracking data (utm_source, fbclid, etc.)
         title,  # V4.6: Article title
-        result.vectors.model_dump() if result.vectors else None  # V4.6: Vectors for primary_vector calc
+        vectors_dict  # V4.6: Vectors for primary_vector calc
     )
 
     # V4.4: Inject url_hash for feedback association
