@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.69"  # V4.7.2: Fix cache save - delete+insert instead of upsert
+API_VERSION = "1.0.70"  # V4.7.3: Add cache debug endpoint + mark cache hits
 
 @app.get("/")
 def health_check():
@@ -81,6 +81,33 @@ async def clear_cache_endpoint(url: str = None):
                 return {"cleared": False, "error": str(e)}
         return {"cleared": False, "message": "Supabase not configured"}
 
+
+@app.get("/v1/cache/debug")
+async def debug_cache_endpoint(url: str = None):
+    """DEBUG: Check cache status for a URL."""
+    if not services.supabase:
+        return {"error": "Supabase not configured"}
+
+    try:
+        if url:
+            url_hash = services.get_nuclear_hash(url)
+            result = services.supabase.table("scan_cache").select("url_hash, ani_score, created_at").eq("url_hash", url_hash).execute()
+            return {
+                "url": url,
+                "url_hash": url_hash,
+                "found": len(result.data) > 0,
+                "entries": result.data
+            }
+        else:
+            # Show all cache entries (limited)
+            result = services.supabase.table("scan_cache").select("url_hash, ani_score, created_at").limit(10).execute()
+            return {
+                "total_entries": len(result.data),
+                "entries": result.data
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.post("/v1/scan", response_model=ANIResponse)
 async def scan_endpoint(
     payload: ScanRequest,
@@ -106,6 +133,7 @@ async def scan_endpoint(
         )
         # V4.4: Inject url_hash for feedback association
         cached["url_hash"] = services.get_nuclear_hash(payload.url)
+        cached["cached"] = True  # Mark as cache hit
         return ANIResponse(**cached)
 
     # 2. PAYMENT GATE (DISABLED FOR ALPHA)
