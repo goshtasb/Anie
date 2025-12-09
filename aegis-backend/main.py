@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.67"  # V4.7 ROLLBACK: Fix event logging - removed broken V4.6 fields
+API_VERSION = "1.0.68"  # V4.7.1: Enhanced cache logging for diagnostics
 
 @app.get("/")
 def health_check():

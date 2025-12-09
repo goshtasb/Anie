@@ -62,7 +62,7 @@ def check_cache(url: str):
         return None
 
     url_hash = get_nuclear_hash(url)
-    print(f"🔍 Cache Check: hash={url_hash[:12]}... for URL: {url[:60]}...")
+    print(f"🔍 Cache Check: hash={url_hash} for URL: {url[:80]}...")
 
     try:
         response = supabase.table("scan_cache").select("*").eq("url_hash", url_hash).execute()
@@ -107,31 +107,37 @@ def check_cache(url: str):
 def save_to_cache(url: str, data: dict, ani_score: int):
     """Save result using NUCLEAR URL hash."""
     if not supabase:
+        print("⚠️ Cache Save: Supabase not configured, skipping")
         return
 
     url_hash = get_nuclear_hash(url)
+    print(f"💾 Attempting cache save: hash={url_hash[:12]}... score={ani_score}")
 
     try:
         # Upsert: replace existing entry (handles re-scans after TTL expiry)
-        supabase.table("scan_cache").upsert({
+        result = supabase.table("scan_cache").upsert({
             "url_hash": url_hash,
             "url": url,
             "ani_score": ani_score,
             "scan_data": data
         }, on_conflict="url_hash").execute()
-        print(f"💾 Saved to Cache (Canonical): {url[:60]}...")
+        print(f"💾 Cache SAVED: hash={url_hash[:12]}... score={ani_score}, rows={len(result.data) if result.data else 0}")
     except Exception as e:
+        import traceback
+        print(f"❌ Cache Upsert FAILED: {e}")
+        traceback.print_exc()
         # Fallback to insert if upsert fails
         try:
-            supabase.table("scan_cache").insert({
+            result = supabase.table("scan_cache").insert({
                 "url_hash": url_hash,
                 "url": url,
                 "ani_score": ani_score,
                 "scan_data": data
             }).execute()
-            print(f"💾 Saved to Cache (Insert): {url[:60]}...")
+            print(f"💾 Cache SAVED (Insert fallback): hash={url_hash[:12]}... rows={len(result.data) if result.data else 0}")
         except Exception as e2:
-            print(f"Cache Save Error: {e2}")
+            print(f"❌ Cache Insert ALSO FAILED: {e2}")
+            traceback.print_exc()
 
 
 def clear_cache(url: str) -> bool:
