@@ -166,18 +166,14 @@ def log_scan_event(
     Fire-and-forget logger for the 'Firehose' table.
     Captures EVERY interaction (cache hits + new scans) for analytics/B2B data.
 
-    This is the "Turnstile" - we count every body that walks through,
-    even if they're reading the same article.
-
     V4.1 Enterprise Data Hygiene: Stores url_hash for instant aggregation.
-    V4.6 Hard Data Pipeline: Adds tracking_payload, article_title, primary_vector.
+    V4.7 ROLLBACK: Removed V4.6 fields that may not exist in table.
     """
     if not supabase:
         return
 
     try:
         # V4.1: Calculate the "SKU" (Nuclear Hash) for B2B aggregation
-        # Groups "cnn.com?ref=twitter" and "cnn.com?ref=facebook" into ONE metric
         url_hash = get_nuclear_hash(url)
 
         # Extract analytics from headers (Cloudflare/Render headers)
@@ -193,45 +189,22 @@ def log_scan_event(
         else:
             device_type = 'web'
 
-        # V4.6: Determine Primary Vector (The "Weapon" - lowest score = most manipulation)
-        primary_vector = None
-        if vectors:
-            vector_scores = {
-                'REALITY': vectors.get('reality', {}).get('score', 100),
-                'TRIBAL': vectors.get('tribal', {}).get('score', 100),
-                'NEURO': vectors.get('neuro', {}).get('score', 100),
-                'LOGIC': vectors.get('logic', {}).get('score', 100)
-            }
-            # Find the lowest score (most manipulation)
-            primary_vector = min(vector_scores, key=vector_scores.get)
-
-        # V4.6: Risk category from score
-        if score >= 70:
-            risk_category = 'LOW_RISK'
-        elif score >= 40:
-            risk_category = 'MEDIUM_RISK'
-        else:
-            risk_category = 'HIGH_MANIPULATION'
-
+        # V4.7: Core fields only - no V4.6 experimental fields
         supabase.table("scan_events").insert({
             "user_id": user_id or "anonymous",
-            "url": url,                      # Raw URL for debugging
-            "url_hash": url_hash,            # V4.1: B2B aggregation key
+            "url": url,
+            "url_hash": url_hash,
             "ani_score": score,
             "action_type": action,
             "origin_location": origin_location,
             "geo_country": country,
             "device_type": device_type,
-            "meta": {"user_agent": user_agent[:500]},  # Truncate to avoid bloat
-            # V4.6 Hard Data Pipeline
-            "tracking_payload": tracking_params or {},
-            "article_title": (article_title or "Unknown")[:255],  # Truncate for safety
-            "primary_vector": primary_vector,
-            "risk_category": risk_category
+            "meta": {"user_agent": user_agent[:500]}
         }).execute()
-        # Silent success - no print to keep logs clean
+        print(f"✅ Event logged: {action} score={score}")
     except Exception as e:
-        # Silent fail - don't block the user for analytics
-        print(f"⚠️ Event Log Error (non-blocking): {e}")
+        import traceback
+        print(f"❌ Event Log FAILED: {e}")
+        traceback.print_exc()
 
 

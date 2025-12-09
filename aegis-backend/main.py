@@ -1,6 +1,5 @@
 # main.py
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse, parse_qs
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
@@ -20,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.65"  # V4.7: 60s timeout for Grok (was timing out at 10s default)
+API_VERSION = "1.0.66"  # V4.7 ROLLBACK: Removed V4.6 fields breaking event logging
 
 @app.get("/")
 def health_check():
@@ -89,24 +88,13 @@ async def scan_endpoint(
     background_tasks: BackgroundTasks,
     x_user_id: str = Header(None, alias="X-User-ID")
 ):
-    # Extract headers for analytics (run once, reuse)
+    # Extract headers for analytics
     headers_dict = dict(request.headers)
 
-    # V4.6: Extract tracking params BEFORE nuclear hash strips them
-    # These are the "Data Exhaust" - utm_source, fbclid, gclid, etc.
-    try:
-        parsed_url = urlparse(payload.url)
-        raw_qs = parse_qs(parsed_url.query)
-        # Flatten: parse_qs returns lists, we want single values
-        tracking_params = {k: v[0] for k, v in raw_qs.items() if v}
-    except Exception:
-        tracking_params = {}
-
-    # 1. CACHE CHECK (Canonical URL)
-    # Frontend sends the stable canonical URL, not the dirty browser URL
+    # 1. CACHE CHECK (Nuclear hash strips all tracking params)
     cached = services.check_cache(payload.url)
     if cached:
-        # LOG CACHE HIT (Background - doesn't slow response)
+        # LOG CACHE HIT (Background)
         background_tasks.add_task(
             services.log_scan_event,
             x_user_id,
@@ -114,17 +102,13 @@ async def scan_endpoint(
             cached.get("ani_score", 0),
             "CACHE_HIT",
             cached.get("origin_location", "Global"),
-            headers_dict,
-            tracking_params,  # V4.6: Tracking data
-            cached.get("title", None),  # V4.6: Article title from cache
-            cached.get("vectors", None)  # V4.6: Vectors from cache
+            headers_dict
         )
         # V4.4: Inject url_hash for feedback association
         cached["url_hash"] = services.get_nuclear_hash(payload.url)
         return ANIResponse(**cached)
 
     # 2. PAYMENT GATE (DISABLED FOR ALPHA)
-    # We log the user, but we do NOT stop them if they have 0 credits.
     if x_user_id:
         print(f"👤 User Scan: {x_user_id}")
     else:
@@ -153,15 +137,9 @@ async def scan_endpoint(
     result = await analyze_text(text_to_analyze, title=title)
 
     # 5. SAVE TO CACHE (Canonical URL)
-    # Save using the stable canonical URL as key
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
 
-    # 6. LOG NEW SCAN EVENT (Background - the Firehose)
-    # V4.6: vectors may be dict or Pydantic model depending on path
-    vectors_dict = None
-    if result.vectors:
-        vectors_dict = result.vectors if isinstance(result.vectors, dict) else {k: v.model_dump() if hasattr(v, 'model_dump') else v for k, v in result.vectors.items()}
-
+    # 6. LOG NEW SCAN EVENT (Background)
     background_tasks.add_task(
         services.log_scan_event,
         x_user_id,
@@ -169,10 +147,7 @@ async def scan_endpoint(
         result.ani_score,
         "NEW_SCAN",
         result.origin_location,
-        headers_dict,
-        tracking_params,  # V4.6: Tracking data (utm_source, fbclid, etc.)
-        title,  # V4.6: Article title
-        vectors_dict  # V4.6: Vectors for primary_vector calc
+        headers_dict
     )
 
     # V4.4: Inject url_hash for feedback association
