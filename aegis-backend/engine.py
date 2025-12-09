@@ -70,12 +70,13 @@ tavily_key = os.getenv("TAVILY_API_KEY")
 if xai_key and not xai_key.startswith("xai-your"):
     client = AsyncOpenAI(
         api_key=xai_key,
-        base_url="https://api.x.ai/v1"
+        base_url="https://api.x.ai/v1",
+        timeout=60.0  # V4.7: Grok needs 15-25s for analysis, default 10s causes timeout
     )
     MODEL = "grok-4-1-fast-reasoning"  # V6.0: Reasoning model for deep forensic analysis
-    print("🚀 Engine V6.0: xAI Grok-4.1 Fast Reasoning (2M Context)")
+    print("🚀 Engine V6.0: xAI Grok-4.1 Fast Reasoning (2M Context, 60s timeout)")
 else:
-    client = AsyncOpenAI(api_key=openai_key)
+    client = AsyncOpenAI(api_key=openai_key, timeout=60.0)
     MODEL = "gpt-4o-mini"
     print("🔄 Engine V3.0: OpenAI GPT-4o-mini (Fallback)")
 

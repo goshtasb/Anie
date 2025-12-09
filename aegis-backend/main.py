@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.63"  # V4.6 Fix: Handle vectors dict/model serialization
+API_VERSION = "1.0.64"  # V4.7: 60s timeout for Grok (was timing out at 10s default)
 
 @app.get("/")
 def health_check():
