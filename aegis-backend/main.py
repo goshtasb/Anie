@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.68"  # V4.7.1: Enhanced cache logging for diagnostics
+API_VERSION = "1.0.69"  # V4.7.2: Fix cache save - delete+insert instead of upsert
 
 @app.get("/")
 def health_check():

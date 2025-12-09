@@ -111,33 +111,31 @@ def save_to_cache(url: str, data: dict, ani_score: int):
         return
 
     url_hash = get_nuclear_hash(url)
-    print(f"💾 Attempting cache save: hash={url_hash[:12]}... score={ani_score}")
+    print(f"💾 Attempting cache save: hash={url_hash} score={ani_score}")
 
     try:
-        # Upsert: replace existing entry (handles re-scans after TTL expiry)
-        result = supabase.table("scan_cache").upsert({
+        # Delete any existing entry first (clean slate)
+        supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
+
+        # Insert fresh entry
+        result = supabase.table("scan_cache").insert({
             "url_hash": url_hash,
             "url": url,
             "ani_score": ani_score,
             "scan_data": data
-        }, on_conflict="url_hash").execute()
-        print(f"💾 Cache SAVED: hash={url_hash[:12]}... score={ani_score}, rows={len(result.data) if result.data else 0}")
+        }).execute()
+
+        # Verify it was saved
+        verify = supabase.table("scan_cache").select("ani_score").eq("url_hash", url_hash).execute()
+        if verify.data and len(verify.data) > 0:
+            print(f"✅ Cache VERIFIED: hash={url_hash[:16]}... score={verify.data[0].get('ani_score')}")
+        else:
+            print(f"⚠️ Cache NOT FOUND after save! hash={url_hash[:16]}...")
+
     except Exception as e:
         import traceback
-        print(f"❌ Cache Upsert FAILED: {e}")
+        print(f"❌ Cache Save FAILED: {e}")
         traceback.print_exc()
-        # Fallback to insert if upsert fails
-        try:
-            result = supabase.table("scan_cache").insert({
-                "url_hash": url_hash,
-                "url": url,
-                "ani_score": ani_score,
-                "scan_data": data
-            }).execute()
-            print(f"💾 Cache SAVED (Insert fallback): hash={url_hash[:12]}... rows={len(result.data) if result.data else 0}")
-        except Exception as e2:
-            print(f"❌ Cache Insert ALSO FAILED: {e2}")
-            traceback.print_exc()
 
 
 def clear_cache(url: str) -> bool:
