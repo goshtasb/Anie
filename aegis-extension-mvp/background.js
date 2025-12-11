@@ -66,8 +66,17 @@ async function handleAnalyzeRequest(request, sendResponse) {
     }
 
     if (!response.ok) {
-      const errorData = await response.json();
-      sendResponse({ status: "error", message: errorData.detail || "Analysis failed" });
+      // Try to get error details from JSON, fall back to status text
+      let errorMessage = `Server error (${response.status})`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorMessage;
+      } catch (e) {
+        // Response wasn't JSON (e.g., timeout error returns plain text)
+        const text = await response.text().catch(() => '');
+        if (text && text.length < 100) errorMessage = text;
+      }
+      sendResponse({ status: "error", message: errorMessage });
       return;
     }
 
@@ -80,7 +89,9 @@ async function handleAnalyzeRequest(request, sendResponse) {
 
   } catch (error) {
     console.error("Aegis API Error:", error);
-    sendResponse({ status: "error", message: error.toString() });
+    // Properly stringify error - error.toString() returns "[object Object]" for some errors
+    const errorMessage = error.message || (typeof error === 'string' ? error : 'Network error - please try again');
+    sendResponse({ status: "error", message: errorMessage });
   }
 }
 
