@@ -1,15 +1,12 @@
 {
   "manifest_version": 3,
   "name": "ANIE | Acuity Narrative Integrity Engine",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "Forensic linguistic analysis. Detects emotional coercion, logical fallacies, and citation integrity in news articles.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage"
-  ],
-  "host_permissions": [
-    "https://aegis-alpha.onrender.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
