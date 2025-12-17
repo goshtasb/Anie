@@ -46,8 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
       showState('scanning');
       statusDiv.textContent = "Extracting text...";
 
-      // 2. V2.2: Extract text with SPA hydration polling
-      // First attempt - run content.js immediately
+      // 2. V2.3: Extract text with ADAPTIVE SPA hydration polling
+      // Performance: Use adaptive timing based on initial response
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ['content.js']
@@ -65,13 +65,17 @@ document.addEventListener('DOMContentLoaded', () => {
         let articleData = results[0].result;
         let wordCount = articleData?.text ? articleData.text.split(/\s+/).filter(w => w.length > 0).length : 0;
 
-        // V2.2: SPA Hydration Retry - if first attempt yields low content, wait and retry
+        // V2.3: ADAPTIVE SPA Hydration - smarter retry with exponential backoff
+        // Performance: Only retry if needed, with adaptive wait times
         if (wordCount < 100) {
-          console.log(`Acuity: First attempt got ${wordCount} words, waiting for SPA hydration...`);
+          console.log(`Acuity: First attempt got ${wordCount} words, using adaptive retry...`);
           statusDiv.textContent = "Waiting for page to load...";
 
-          // Wait 2 seconds for React/Vue/Angular to hydrate
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Performance: Adaptive delay - shorter for sites that almost loaded, longer for SPAs
+          // If we got some content (20-99 words), page is loading - wait less
+          // If we got almost nothing (0-19 words), likely heavy SPA - wait more
+          const adaptiveDelay = wordCount > 20 ? 800 : 1500;
+          await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
 
           // Retry extraction
           const retryResults = await chrome.scripting.executeScript({
@@ -82,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (retryResults && retryResults[0] && retryResults[0].result) {
             const retryData = retryResults[0].result;
             const retryWordCount = retryData?.text ? retryData.text.split(/\s+/).filter(w => w.length > 0).length : 0;
-            console.log(`Acuity: Retry got ${retryWordCount} words`);
+            console.log(`Acuity: Retry got ${retryWordCount} words after ${adaptiveDelay}ms`);
 
             // Use retry result if better
             if (retryWordCount > wordCount) {

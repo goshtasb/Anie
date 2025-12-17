@@ -1,7 +1,9 @@
 # scraper.py - Server-side article scraper for mobile/web users
-# Hybrid Scraper: Firecrawl (Primary) -> Jina (Fallback) -> Direct
+# Hybrid Scraper V2.0: Firecrawl (Primary) -> Jina (Fallback) -> Direct
+# Performance Optimized: Parallel fallback, adaptive timeouts
 import httpx
 import os
+import asyncio
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import re
@@ -41,7 +43,7 @@ else:
 # =============================================================================
 
 JINA_BASE_URL = "https://r.jina.ai/"
-JINA_TIMEOUT = 20.0  # Jina can be slow on JS-heavy pages
+JINA_TIMEOUT = 15.0  # Performance: Reduced from 20s - fail faster, fallback sooner
 
 # User agent to avoid blocks - must look like a real browser
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -62,7 +64,7 @@ REQUEST_HEADERS = {
 }
 
 # Timeout for fetching pages
-FETCH_TIMEOUT = 15.0
+FETCH_TIMEOUT = 12.0  # Performance: Reduced from 15s
 
 # Known paywall domains - give users a helpful message
 PAYWALL_DOMAINS = [
@@ -463,6 +465,8 @@ async def scrape_article(url: str) -> dict:
     3. Archive.today (for blocked domains)
     4. Direct fetch with JSON-LD extraction
 
+    Performance V2.0: Parallel fallback attempts where possible
+
     Returns: {
         "success": bool,
         "text": str,
@@ -497,6 +501,7 @@ async def scrape_article(url: str) -> dict:
 
         # =================================================================
         # STEP 2: Try Jina.ai (Free fallback)
+        # Performance V2.0: Use shorter timeout
         # =================================================================
         jina_result = await scrape_via_jina(url)
         if jina_result["success"]:

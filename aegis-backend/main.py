@@ -1,8 +1,9 @@
-# main.py
+# main.py - Performance Optimized V2.0
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, parse_qs
 from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
 from engine import analyze_text, client, MODEL
 import services
@@ -20,11 +21,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-API_VERSION = "1.0.71"  # V4.8: Safe B2B enrichment (tracking, title, primary_vector, risk_category)
+API_VERSION = "1.0.72"  # V4.9: Performance optimizations - caching headers, adaptive timeouts
 
 @app.get("/")
 def health_check():
     return {"status": "Acuity Systems Online (Alpha Mode)", "version": API_VERSION}
+
+
+# Performance: Add caching middleware for stats endpoint
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    # Add cache headers for specific endpoints
+    if request.url.path == "/v1/stats":
+        # Stats can be cached for 30 seconds
+        response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
+    elif request.url.path == "/":
+        # Health check can be cached for 5 minutes
+        response.headers["Cache-Control"] = "public, max-age=300"
+    elif request.url.path == "/v1/scan":
+        # Scan results should not be cached by browser (but we cache server-side)
+        response.headers["Cache-Control"] = "no-store"
+
+    return response
 
 
 @app.get("/v1/stats")

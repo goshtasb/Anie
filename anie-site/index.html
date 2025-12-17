@@ -31,10 +31,11 @@
     <link rel="icon" type="image/png" href="icons/48.png">
     <link rel="apple-touch-icon" href="icons/128.png">
 
-    <!-- Fonts -->
+    <!-- Fonts - Optimized with font-display: swap for faster LCP -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet"></noscript>
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
@@ -195,12 +196,19 @@
     </footer>
 
     <script>
+        // ============================================================
+        // PERFORMANCE OPTIMIZED V2.0 - Request deduplication & smart polling
+        // ============================================================
         const API_URL = 'https://aegis-alpha.onrender.com/v1/scan';
         const CHAT_URL = 'https://aegis-alpha.onrender.com/v1/chat';
         const FEEDBACK_URL = 'https://aegis-alpha.onrender.com/v1/feedback';
         const scanBtn = document.getElementById('scanBtn');
         const urlInput = document.getElementById('urlInput');
         const resultDiv = document.getElementById('scanResult');
+
+        // Performance: Request deduplication
+        let pendingRequest = null;
+        let lastScanUrl = null;
 
         // Interrogation Mode state
         let currentArticleText = '';
@@ -249,32 +257,46 @@
                 return;
             }
 
+            // Performance: Prevent duplicate requests for same URL
+            if (pendingRequest && lastScanUrl === url) {
+                console.log('Duplicate request blocked');
+                return;
+            }
+
             // Show loading state
             resultDiv.style.display = 'block';
             scanBtn.disabled = true;
             scanBtn.textContent = 'SCANNING...';
+            lastScanUrl = url;
 
             let msgIndex = 0;
+            // Performance: Use cached loader element reference
             resultDiv.innerHTML = `
-                <div class="loader">${loadingMessages[0]}</div>
+                <div class="loader" id="scanLoader">${loadingMessages[0]}</div>
                 <p class="loading-disclaimer">
                     (Deep forensic analysis requires real-time AI processing. Please allow up to 60 seconds.)
                 </p>
             `;
+            const loaderEl = document.getElementById('scanLoader');
 
-            // Cycle messages every 5 seconds (covers 60s without looping)
+            // Cycle messages every 3 seconds for faster perceived progress
             const loadingInterval = setInterval(() => {
                 msgIndex = (msgIndex + 1) % loadingMessages.length;
-                const loader = resultDiv.querySelector('.loader');
-                if (loader) loader.textContent = loadingMessages[msgIndex];
-            }, 5000);
+                if (loaderEl) loaderEl.textContent = loadingMessages[msgIndex];
+            }, 3000);
+
+            // Performance: Create AbortController for request timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 65000); // 65s timeout
 
             try {
-                const response = await fetch(API_URL, {
+                pendingRequest = fetch(API_URL, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: url, text: '' })
+                    body: JSON.stringify({ url: url, text: '' }),
+                    signal: controller.signal
                 });
+                const response = await pendingRequest;
 
                 clearInterval(loadingInterval);
 
@@ -377,8 +399,11 @@
 
             } catch (e) {
                 clearInterval(loadingInterval);
-                resultDiv.innerHTML = `<div class="res-error">${e.message}</div>`;
+                clearTimeout(timeoutId);
+                const errorMsg = e.name === 'AbortError' ? 'Request timed out. Please try again.' : e.message;
+                resultDiv.innerHTML = `<div class="res-error">${errorMsg}</div>`;
             } finally {
+                pendingRequest = null;
                 scanBtn.disabled = false;
                 scanBtn.textContent = 'SCAN';
             }
@@ -389,21 +414,30 @@
             if (e.key === 'Enter') scanBtn.click();
         });
 
-        // LIVE TICKER LOGIC
+        // LIVE TICKER LOGIC - Performance optimized with visibility API
+        let tickerInterval = null;
+        let statsCache = null;
+        let lastStatsFetch = 0;
+        const STATS_CACHE_TTL = 60000; // 60 seconds cache
+
         async function updateTicker() {
             const pill = document.querySelector('.status-pill');
             if (!pill) return;
 
+            // Performance: Use cached stats if fresh
+            const now = Date.now();
+            if (statsCache && (now - lastStatsFetch) < STATS_CACHE_TTL) {
+                return; // Use cached data
+            }
+
             try {
-                // Fetch stats from our backend
                 const response = await fetch('https://aegis-alpha.onrender.com/v1/stats');
                 const data = await response.json();
+                statsCache = data;
+                lastStatsFetch = now;
 
                 if (data.status === 'OPERATIONAL') {
-                    // Update UI with real numbers
                     pill.innerHTML = `<span class="live-dot">●</span> SYSTEM ONLINE | ${data.scans_24h} NARRATIVES ANALYZED (24H)`;
-
-                    // Style updates for "Active" state
                     pill.style.borderColor = 'rgba(0, 200, 81, 0.5)';
                     pill.style.color = '#00C851';
                     pill.style.boxShadow = '0 0 10px rgba(0, 200, 81, 0.2)';
@@ -413,9 +447,32 @@
             }
         }
 
-        // Run immediately on load, then refresh every 30 seconds
-        updateTicker();
-        setInterval(updateTicker, 30000);
+        // Performance: Only poll when page is visible
+        function startTickerPolling() {
+            if (!tickerInterval) {
+                updateTicker();
+                tickerInterval = setInterval(updateTicker, 60000); // Poll every 60s instead of 30s
+            }
+        }
+
+        function stopTickerPolling() {
+            if (tickerInterval) {
+                clearInterval(tickerInterval);
+                tickerInterval = null;
+            }
+        }
+
+        // Use Page Visibility API to pause polling when tab is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopTickerPolling();
+            } else {
+                startTickerPolling();
+            }
+        });
+
+        // Initial load
+        startTickerPolling();
 
         // ============================================================
         // INTERROGATION MODE: Chat Functions
@@ -607,9 +664,9 @@
         }
     </script>
 
-    <!-- GoatCounter Analytics (Privacy-First) -->
+    <!-- GoatCounter Analytics (Privacy-First) - Deferred for performance -->
     <script data-goatcounter="https://anie.goatcounter.com/count"
-            async src="//gc.zgo.at/count.js"></script>
+            async defer src="//gc.zgo.at/count.js"></script>
     <noscript>
         <img src="https://anie.goatcounter.com/count?p=/&t=Acuity" alt="" style="position:absolute;left:-9999px"/>
     </noscript>

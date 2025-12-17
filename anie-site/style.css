@@ -145,7 +145,11 @@ h1 {
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.1);
     margin-bottom: 2rem;
+    /* Performance: backdrop-filter is expensive, use on GPU layer */
     backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform: translateZ(0);
+    contain: content;
 }
 
 .input-group {
@@ -312,13 +316,15 @@ h1 {
     margin-top: 6px;
 }
 
-/* THE "MASLO" BLOB ANIMATION */
+/* THE "MASLO" BLOB ANIMATION - GPU Optimized */
 .visual-right {
     display: flex;
     justify-content: center;
     align-items: flex-start;
     position: relative;
     padding-top: 60px;
+    /* Performance: Prevent layout thrashing */
+    contain: layout style;
 }
 
 .neural-orb {
@@ -330,6 +336,9 @@ h1 {
     animation: morph 8s ease-in-out infinite;
     box-shadow: 0 0 60px var(--orb-glow);
     mix-blend-mode: screen;
+    /* Performance: Force GPU layer */
+    will-change: border-radius, transform;
+    transform: translateZ(0);
 }
 
 .orb-core {
@@ -339,6 +348,9 @@ h1 {
     background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), transparent);
     filter: blur(15px);
     animation: morph 8s ease-in-out infinite reverse;
+    /* Performance: Force GPU layer */
+    will-change: border-radius, transform;
+    transform: translateZ(0);
 }
 
 .scan-line {
@@ -349,18 +361,26 @@ h1 {
     top: 0;
     animation: scan 3s linear infinite;
     opacity: 0.3;
+    will-change: top, opacity;
 }
 
 @keyframes morph {
-    0%, 100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(0deg); }
-    33% { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; transform: rotate(120deg); }
-    66% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; transform: rotate(240deg); }
+    0%, 100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(0deg) translateZ(0); }
+    33% { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; transform: rotate(120deg) translateZ(0); }
+    66% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; transform: rotate(240deg) translateZ(0); }
 }
 
 @keyframes scan {
     0% { top: 0%; opacity: 0; }
     50% { opacity: 1; }
     100% { top: 100%; opacity: 0; }
+}
+
+/* Performance: Reduce animations on mobile for battery life */
+@media (prefers-reduced-motion: reduce) {
+    .neural-orb, .orb-core, .scan-line, .live-dot, .loader {
+        animation: none;
+    }
 }
 
 /* FEATURES GRID */

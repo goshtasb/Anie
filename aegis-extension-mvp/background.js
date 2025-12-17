@@ -1,7 +1,11 @@
-// background.js
+// background.js - Performance Optimized V2.0
 
 // Production API URL (Render deployment)
 const API_URL = 'https://aegis-alpha.onrender.com';
+
+// Performance: Request deduplication - prevent duplicate API calls
+const pendingRequests = new Map();
+const REQUEST_TIMEOUT = 65000; // 65 second timeout
 
 // Generate or retrieve a unique device ID for guest mode
 async function getDeviceId() {
@@ -19,10 +23,16 @@ async function getDeviceId() {
   });
 }
 
-// Sync credits from server response
+// Sync credits from server response (batched to reduce storage writes)
+let creditsSyncPending = null;
 function syncCredits(creditsFromServer) {
   if (creditsFromServer !== null && creditsFromServer !== undefined) {
-    chrome.storage.local.set({ credits: creditsFromServer });
+    // Performance: Debounce storage writes
+    if (creditsSyncPending) clearTimeout(creditsSyncPending);
+    creditsSyncPending = setTimeout(() => {
+      chrome.storage.local.set({ credits: creditsFromServer });
+      creditsSyncPending = null;
+    }, 100);
   }
 }
 
@@ -40,59 +50,96 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 async function handleAnalyzeRequest(request, sendResponse) {
-  try {
-    const deviceId = await getDeviceId();
+  const url = request.payload.url;
 
-    // Call Backend API
-    const response = await fetch(`${API_URL}/v1/scan`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: request.payload.url,
-        text: request.payload.text,
-        title: request.payload.title,
-        domain: request.payload.domain,
-        device_id: deviceId
-      })
-    });
-
-    if (response.status === 402) {
-      // No credits remaining
-      syncCredits(0);
-      sendResponse({ status: "error", code: "NO_CREDITS" });
+  // Performance: Request deduplication - check if same URL is already being analyzed
+  if (pendingRequests.has(url)) {
+    console.log('Acuity: Deduplicating request for', url);
+    // Wait for existing request to complete
+    try {
+      const existingResult = await pendingRequests.get(url);
+      sendResponse(existingResult);
       return;
+    } catch (e) {
+      // Existing request failed, continue with new request
     }
-
-    if (!response.ok) {
-      // Try to get error details from JSON, fall back to status text
-      let errorMessage = `Server error (${response.status})`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.detail || errorMessage;
-      } catch (e) {
-        // Response wasn't JSON (e.g., timeout error returns plain text)
-        const text = await response.text().catch(() => '');
-        if (text && text.length < 100) errorMessage = text;
-      }
-      sendResponse({ status: "error", message: errorMessage });
-      return;
-    }
-
-    const data = await response.json();
-
-    // Sync credits from server response
-    syncCredits(data.credits_remaining);
-
-    sendResponse({ status: "success", data: data });
-
-  } catch (error) {
-    console.error("Aegis API Error:", error);
-    // Properly stringify error - error.toString() returns "[object Object]" for some errors
-    const errorMessage = error.message || (typeof error === 'string' ? error : 'Network error - please try again');
-    sendResponse({ status: "error", message: errorMessage });
   }
+
+  // Create a promise for this request that others can wait on
+  const requestPromise = (async () => {
+    try {
+      const deviceId = await getDeviceId();
+
+      // Performance: AbortController for request timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      // Call Backend API
+      const response = await fetch(`${API_URL}/v1/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: request.payload.url,
+          text: request.payload.text,
+          title: request.payload.title,
+          domain: request.payload.domain,
+          device_id: deviceId
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.status === 402) {
+        // No credits remaining
+        syncCredits(0);
+        return { status: "error", code: "NO_CREDITS" };
+      }
+
+      if (!response.ok) {
+        // Try to get error details from JSON, fall back to status text
+        let errorMessage = `Server error (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch (e) {
+          // Response wasn't JSON (e.g., timeout error returns plain text)
+          const text = await response.text().catch(() => '');
+          if (text && text.length < 100) errorMessage = text;
+        }
+        return { status: "error", message: errorMessage };
+      }
+
+      const data = await response.json();
+
+      // Sync credits from server response
+      syncCredits(data.credits_remaining);
+
+      return { status: "success", data: data };
+
+    } catch (error) {
+      console.error("Aegis API Error:", error);
+      // Handle abort specifically
+      if (error.name === 'AbortError') {
+        return { status: "error", message: "Request timed out. Please try again." };
+      }
+      // Properly stringify error - error.toString() returns "[object Object]" for some errors
+      const errorMessage = error.message || (typeof error === 'string' ? error : 'Network error - please try again');
+      return { status: "error", message: errorMessage };
+    } finally {
+      // Clean up pending request
+      pendingRequests.delete(url);
+    }
+  })();
+
+  // Store the promise for deduplication
+  pendingRequests.set(url, requestPromise);
+
+  // Wait for result and send response
+  const result = await requestPromise;
+  sendResponse(result);
 }
 
 async function handleGetCredits(sendResponse) {

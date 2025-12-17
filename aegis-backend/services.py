@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Cache TTL: 24 hours (stories evolve, search indices update)
-CACHE_TTL_HOURS = 24
+# Cache TTL: 12 hours (Performance: fresher results, stories evolve quickly)
+CACHE_TTL_HOURS = 12
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
