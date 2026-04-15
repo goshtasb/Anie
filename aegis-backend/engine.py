@@ -665,13 +665,16 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                 # Start with AI's score constrained by minimum vector
                 final_score = min(ai_score, min_vector)
 
-                # CONSISTENCY BOOST (The "Math Fix")
-                # If vectors are all high (avg > 85) but AI gave a lower score,
-                # boost the final score to match the vectors. This prevents
-                # "100+100+100 = 95" confusion that erodes user trust.
+                # CONSISTENCY BOOST (capped by Weakest Link Rule)
+                # Raise final_score toward the vector average when the AI under-scored,
+                # but never more than 5 points above the lowest vector. This preserves
+                # the prompt's explicit rule: "Final ANI Score MUST NOT exceed the
+                # lowest Vector Score by more than 5 points."
                 if avg_vector > final_score and min_vector >= 70:
-                    final_score = int(avg_vector)
-                    print(f"📈 Consistency Boost: Vectors avg {avg_vector:.0f} > AI {ai_score}, boosting to {final_score}")
+                    boosted = min(int(avg_vector), min_vector + 5)
+                    if boosted > final_score:
+                        print(f"📈 Consistency Boost: avg={avg_vector:.0f}, min={min_vector}, {final_score}→{boosted}")
+                        final_score = boosted
 
                 print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, AvgVector={avg_vector:.0f}, Final={final_score}")
 
