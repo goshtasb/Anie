@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="anie-logo-128px.png" alt="A.N.I.E. logo" width="64" height="64" />
+</p>
+
 # Project Aegis / A.N.I.E. (Acuity Narrative Integrity Engine)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
