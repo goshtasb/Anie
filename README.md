@@ -32,7 +32,6 @@ Live site: [www.goanie.com](https://www.goanie.com)
   - [Website](#2-website-anie-site)
   - [Chrome extension](#3-chrome-extension-aegis-extension-mvp)
   - [Mobile app](#4-mobile-app-anie-mobile)
-- [Environment variables](#environment-variables)
 - [API overview](#api-overview)
 - [Full documentation](#full-documentation)
 - [Contributing](#contributing)
@@ -113,7 +112,7 @@ git clone https://github.com/goshtasb/Anie.git
 cd Anie
 ```
 
-You will need API keys for xAI, Tavily, Firecrawl, and a Supabase project. See [Environment variables](#environment-variables) below.
+You will need API keys for xAI, Tavily, Firecrawl, and a Supabase project.
 
 ### 1. Backend ([aegis-backend/](aegis-backend))
 
@@ -123,7 +122,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Create a .env file with the keys listed below
+# Create a .env file with your API keys
 cp ../.env.example .env   # if you have one, otherwise create manually
 
 uvicorn main:app --reload --port 8000
