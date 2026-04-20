@@ -172,29 +172,6 @@ Bundle ID: `com.axiom.anie`.
 
 ---
 
-## Environment variables
-
-The backend reads these from a `.env` file in [aegis-backend/](aegis-backend):
-
-```bash
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-service-role-key
-
-# xAI (analysis engine)
-XAI_API_KEY=xai-your-key
-
-# Tavily (truth layer)
-TAVILY_API_KEY=tvly-your-key
-
-# Firecrawl (scraping)
-FIRECRAWL_API_KEY=fc-your-key
-```
-
-Never commit `.env` files — `.gitignore` already excludes them.
-
----
-
 ## API overview
 
 Base URL (production): `https://aegis-alpha.onrender.com`
