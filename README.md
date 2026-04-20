@@ -1,10 +1,20 @@
 # Project Aegis / A.N.I.E. (Acuity Narrative Integrity Engine)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](aegis-backend)
+[![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)](aegis-backend)
+[![React Native](https://img.shields.io/badge/React%20Native-Expo-61DAFB?logo=react&logoColor=white)](anie-mobile)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white)](aegis-extension-mvp)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
+[![Live site](https://img.shields.io/badge/live-goanie.com-0a9396)](https://www.goanie.com)
+
 Open-source forensic analysis platform that detects manipulation, bias, and psychological operations ("psyops") in news articles and web content.
 
 Given a URL or body of text, the system returns a **0–100 Narrative Integrity Score** along with a detailed breakdown across four forensic vectors: Reality Anchoring, Tribal Engineering, Neuro-Linguistic Intent, and Logical Integrity.
 
 Live site: [www.goanie.com](https://www.goanie.com)
+
+> If this project is useful to you, please **star the repo** — it helps others discover it.
 
 ---
 
@@ -235,7 +245,7 @@ For larger changes (new vectors, scoring changes, new engines), open an issue fi
 
 ## License
 
-This project is released as open source. A `LICENSE` file will be added at the root — until then, treat the code as "source-available for review and contribution." If you plan to use it in production, please open an issue so the maintainers can confirm the license terms.
+Released under the [MIT License](LICENSE) — you are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, as long as the original copyright notice and license are included.
 
 ---
 
