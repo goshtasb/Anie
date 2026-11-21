@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
-from engine import analyze_text, client, MODEL
+from engine import analyze_text, client, MODEL, ENGINE_VERSION
 import services
 from scraper import scrape_article
 import uvicorn
@@ -192,8 +192,14 @@ async def scan_endpoint(
         title = scrape_result.get("title", title)
         print(f"✅ Scraped {len(text_to_analyze)} chars, title: {title[:50]}...")
 
-    # 4. RUN GROK (The Cost)
-    result = await analyze_text(text_to_analyze, title=title)
+    # 4. RUN GROK (The Cost), unless this exact article text was already scored.
+    # V5.9r5: the content cache makes the same article get the same score every time.
+    by_text = services.check_content_cache(text_to_analyze, title, ENGINE_VERSION)
+    if by_text:
+        result = ANIResponse(**by_text)
+    else:
+        result = await analyze_text(text_to_analyze, title=title)
+        services.save_content_cache(text_to_analyze, title, ENGINE_VERSION, result.model_dump(), result.ani_score)
 
     # 5. SAVE TO CACHE (Canonical URL)
     services.save_to_cache(payload.url, result.model_dump(), result.ani_score)

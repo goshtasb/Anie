@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V5.3 "Quote Attribution" (Messenger vs Message Protocol)
+# engine.py - Acuity A.N.I.E. Engine V5.10 "Word List" + V5.9r4 "NCI Sheet Evidence" + V5.9 "Itemized Ledger" + V5.8 "Stacking Rule" + V5.7 "Position vs Technique" on V5.3 Quote Attribution
 import os
 import json
 import re
@@ -6,7 +6,8 @@ import asyncio
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from openai import AsyncOpenAI
-from schemas import ANIResponse, VectorScore, FactCheckVector
+from schemas import ANIResponse, VectorScore, FactCheckVector, ChecklistItem, SheetEvidence
+from rulebook import apply_rulebook, apply_sheet
 from dotenv import load_dotenv
 
 
@@ -14,6 +15,10 @@ from dotenv import load_dotenv
 # V5.6 SANITIZER: Aggressive Post-Processing Clean Room
 # Strips ALL internal codes from user-facing output
 # ============================================================
+# Bump on any change to the prompt, rulebook or word list; the content cache is keyed on it.
+ENGINE_VERSION = "5.10"
+
+
 def sanitize_output(text: str) -> str:
     """
     V5.6 Clean Room Sanitizer - AGGRESSIVE code removal.
@@ -127,7 +132,11 @@ Truth Context: {search_context}
 **MANDATORY:** Determine Content Type.
 **IF NEWS/JOURNALISM:** Apply STRICT SCRUTINY. Adjectives are enemies. Framing is a weapon.
 **IF COMMERCIAL:** Leniency on tone (90-100 unless fraud).
-**IF OPINION:** Leniency on bias (60-80 unless false claims).
+**IF OPINION [V5.7 - Position vs Technique]:** Leniency covers the POSITION, never the TECHNIQUES.
+   - **ALLOWED (no deduction):** Arguing one side, a stated thesis, first-person voice, advocacy, citing only supporting evidence that is attributed.
+   - **NOT EXCUSED:** Every one of the 24 markers found in the AUTHOR'S voice is deducted at full rate. Score Ceilings, Red Lines and the Weakest Link Rule apply exactly as for news.
+   - **NO FLOOR:** Opinion does NOT guarantee 60-80. A clean argued opinion can score 80+; a spin-loaded one can score below 40.
+   - **OPINION MUST BE EARNED:** Only treat as opinion if the text openly presents itself as argument (signed column, op-ed, editorial, "I argue", "in my view"). If it is formatted as news (headline reports an event, narrator states contested claims as fact) → classify as NEWS and apply STRICT SCRUTINY.
 **IF LIFESTYLE/CULTURE:** SENSORY ALLOWANCE unless Trojan Horse detected (ideology hidden in lifestyle).
 **IF TECH/PRODUCT REVIEW:** Apply OBJECT LENIENCY. High-arousal language about products/tech is style, not psyop.
 **IF DATA/REFERENCE ARTICLE [V5.2]:** Apply **"Just the Facts" Protocol**.
@@ -252,8 +261,14 @@ Scan for these 5 markers:
 **V5.4 SCORE CEILING RULE (for Author's Voice manipulation):**
 - **Score 80-100 (Organic):** REQUIRES **ZERO** manipulation tactics in JOURNALIST'S VOICE. Quoted manipulation does NOT count.
 - **Score 60-79 (Moderate Spin):** 1-3 tactics detected in journalist's framing.
-- **Score 40-59 (High Manipulation):** 4+ tactics OR significant emotional coercion by journalist.
-- **Score < 40 (Engineered):** Red Lines triggered OR Full Consensus Engineering.
+- **Score 40-59 (High Manipulation):** 4-5 tactics OR significant emotional coercion by journalist.
+- **Score < 40 (Engineered):** Red Lines triggered OR Full Consensus Engineering OR 6+ tactics.
+
+**V5.8 STACKING RULE (Tactic Count Is Not a Floor):**
+- Bands are CEILINGS, never FLOORS. Deductions keep stacking past 40.
+- **6-7 tactics** in JOURNALIST'S VOICE → Score 25-39, even with no Red Line.
+- **8+ tactics** in JOURNALIST'S VOICE → Score < 25.
+- Count each distinct tactic once. Quoted manipulation does NOT count (Quote Shield still applies).
 
 **THE CEILING IS ABSOLUTE (for Author's Voice):**
 - If JOURNALIST uses In-Group Framing → Max score = 75
@@ -318,6 +333,17 @@ Return valid JSON only. Fill "thinking_process" FIRST.
 {{
   "thinking_process": "1. Classify content type. 2. Scan all 24 markers (use numbers internally: #1-#24). 3. Check for Kill Switches. 4. Apply Weakest Link Rule. 5. TRANSLATE marker numbers to concept names for output.",
   "content_type": "One of: [commercial, news, opinion, lifestyle, reference]",
+  "nci_ledger": [
+    {{"marker": 1, "hit": false, "voice": null, "quote": ""}},
+    {{"marker": 2, "hit": true, "voice": "author", "quote": "EXACT QUOTE from text"}},
+    {{"marker": 14, "hit": true, "voice": "author", "quote": "EXACT QUOTE from text", "target": "subject"}},
+    "... one object for EVERY marker 1 through 24, in order. 24 objects, no more, no fewer."
+  ],
+  "nci_sheet": [
+    {{"item": "Timing", "status": "needs_search", "quote": ""}},
+    {{"item": "Overuse of Novelty", "status": "present", "quote": "EXACT QUOTE from text"}},
+    "... one object for EACH of the 8 sheet items, in the order listed in sheet_instruction."
+  ],
   "ani_score": INTEGER,
   "verdict": "One of: [Organic, Light Spin, Moderate Spin, High Manipulation, Engineered Narrative]",
   "summary": "One sentence citing the TACTICS DETECTED by name (NO marker numbers). Example: 'Detected In-Group Framing and High-Arousal Language targeting immigration policy.'",
@@ -397,6 +423,33 @@ Summary (USER-FACING): "Clean reference material with verified citations. No man
 Final Score: 92
 Verdict: Organic
 </examples>
+
+<ledger_instruction>
+**V5.9 ITEMIZED LEDGER (the score is computed from this):**
+- "nci_ledger" MUST list all 24 markers, one object each, in order 1-24.
+- **Work through the markers ONE AT A TIME.** For each one, ask: "Does the author's own narration or headline do this anywhere in the text?" Re-read the whole text for that marker before answering. Each marker is judged on its own; finding other markers never ends or shortens the scan, and a mild use still counts.
+- "hit": true when you can copy an EXACT QUOTE (25 words max) from the article that shows the marker. No quote = "hit": false. Never paraphrase; copy the words exactly.
+- Marker 14 (High-Arousal) is checked by a fixed word list in code; your row for it is shown but never scored. Still fill it.
+- For marker 14 only, add "target": "subject" (person, group or policy) or "object" (product, tech, movie, place, thing), per THE TARGET RULE.
+- "voice": "author" for the journalist's own narration or headline, including narration that states a contested claim as fact or characterizes people without attribution. "quoted" only when the words are inside quotation marks from a speaker (Quote Shield). null when "hit" is false.
+- The engine recomputes ani_score, verdict and vector scores from this ledger using the scoring rules above, and discards any hit whose quote is not found verbatim in the article. Be complete and exact here; it is the part of your answer that counts.
+</ledger_instruction>
+
+<sheet_instruction>
+**V5.9r4 NCI SHEET ITEMS (evidence only; these never change any score, cap or verdict):**
+"nci_sheet" MUST list these 8 items, in this order, each with "status" and "quote":
+1. Timing: Does the timing feel suspicious or coincidental with other events?
+2. Uniform Messaging: Are key phrases or ideas repeated across media?
+3. Overuse of Novelty: Is the event framed as shocking or unprecedented?
+4. Financial/Political Gain: Do powerful groups benefit disproportionately?
+5. Emotional Repetition: Are the same emotional triggers repeated excessively within the text?
+6. Manufactured Outrage: Does outrage seem sudden or disconnected from facts?
+7. Rapid Behavior Shifts: Are groups adopting symbols or actions without clear reasoning?
+8. Historical Parallels: Does the story mirror manipulative past events, or invoke past events to push a conclusion?
+- "status": "present" ONLY with an EXACT QUOTE (25 words max) showing it in the author's own voice. Otherwise "absent", quote "".
+- Timing, Uniform Messaging, Financial/Political Gain and Rapid Behavior Shifts need other coverage to judge. Use "needs_search" unless the article itself plainly shows it, or the Truth Context gives other coverage you can quote exactly.
+- Reporting real events, real dates or real beneficiaries is NOT evidence by itself. Suspicion is not evidence; quote what the text does.
+</sheet_instruction>
 
 <flags_instruction>
 **CRITICAL FOR FLAGS:**
@@ -588,7 +641,7 @@ Remember: A psyop can use TRUE facts to create a FALSE reality.
                 {"role": "user", "content": prompt}
             ],
             temperature=0.0,
-            max_tokens=2000
+            max_tokens=4000
         )
 
         raw = completion.choices[0].message.content
@@ -678,8 +731,22 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
 
                 print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, AvgVector={avg_vector:.0f}, Final={final_score}")
 
+                # V5.9 ITEMIZED LEDGER: when the model returned a ledger, the score is
+                # computed in code from verified, quoted markers (rulebook.py).
+                rb = apply_rulebook(analysis, f"{title or ''}\n{text}")
+                checklist = _apply_rulebook_to_vectors(rb, vectors)
+                # V5.9r4: NCI sheet items, evidence only. The search-dependent items
+                # (timing, uniform messaging, gain, behavior shifts) can quote Tavily results here.
+                sheet = _sheet_evidence(analysis, f"{title or ''}\n{text}",
+                                        "\n".join(search_results.get("results", [])))
+                if rb:
+                    final_score = rb["score"]
+                    print(f"📒 Ledger Result: tactics={rb['tactic_count']}, Final={final_score}")
+
                 # Determine verdict based on final score
-                if final_score <= 30:
+                if rb:
+                    verdict = rb["verdict"]
+                elif final_score <= 30:
                     verdict = "Engineered Narrative"
                 elif final_score <= 50:
                     verdict = "High Manipulation"
@@ -707,7 +774,9 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                     verdict=verdict,
                     origin_location=analysis.get("origin_location", "Global"),
                     vectors=vectors,
-                    fact_check=fact_check
+                    fact_check=fact_check,
+                    checklist=checklist,
+                    sheet_evidence=sheet
                 )
 
         # Fallback: No Tavily - style-only analysis
@@ -729,8 +798,8 @@ async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIR
                 {"role": "system", "content": get_psyop_hunter_prompt(current_date, "No search results available - analyze text patterns only")},
                 {"role": "user", "content": f"Analyze for psyop patterns (no external verification available):\n\nTitle: {title}\n\n{text[:MAX_TEXT_LENGTH]}"}
             ],
-            temperature=0.2,
-            max_tokens=2000
+            temperature=0.0,  # V5.9r5: same article, same answer
+            max_tokens=4000
         )
 
         data = json.loads(completion.choices[0].message.content)
@@ -753,18 +822,52 @@ async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIR
                     analysis=sanitize_output(v.get("analysis", ""))
                 )
 
+        # V5.9 ITEMIZED LEDGER: score computed in code from verified, quoted markers
+        rb = apply_rulebook(data, f"{title or ''}\n{text}")
+        checklist = _apply_rulebook_to_vectors(rb, vectors)
+        sheet = _sheet_evidence(data, f"{title or ''}\n{text}")  # no search: those items stay needs_search
+
         # V5.5: Sanitize summary
         return ANIResponse(
-            ani_score=data.get("ani_score", 50),
+            ani_score=rb["score"] if rb else data.get("ani_score", 50),
             summary=sanitize_output(data.get("summary", "Style-only psyop analysis (no external verification).")),
-            verdict=data.get("verdict", "Analysis Complete"),
+            verdict=rb["verdict"] if rb else data.get("verdict", "Analysis Complete"),
             origin_location=data.get("origin_location", "Global"),
             vectors=vectors,
-            fact_check=None
+            fact_check=None,
+            checklist=checklist,
+            sheet_evidence=sheet
         )
 
     except Exception as e:
         return _fallback_response(f"Style analysis error: {str(e)}")
+
+
+_VECTOR_UI_KEYS = {"reality_anchoring": "reality", "tribal_engineering": "tribal",
+                   "neuro_linguistic": "neuro", "logical_integrity": "logic"}
+
+
+def _apply_rulebook_to_vectors(rb, vectors: dict):
+    """V5.9: overwrite vector scores/flags with the ledger's verified results.
+    Returns the user-facing checklist (concept names only, no marker numbers), or None."""
+    if not rb:
+        return None
+    for api_key, ui_key in _VECTOR_UI_KEYS.items():
+        v = vectors.get(ui_key)
+        analysis = v.analysis if v else "No analysis"
+        vectors[ui_key] = VectorScore(score=rb["vectors"][api_key], flags=rb["flags"][api_key], analysis=analysis)
+    return [ChecklistItem(name=c["name"], vector=_VECTOR_UI_KEYS[c["vector"]], hit=c["hit"],
+                          counted=c["counted"], voice=c["voice"] if c["hit"] else None,
+                          quote=c["quote"] if c["hit"] else None)
+            for c in rb["checklist"]]
+
+
+def _sheet_evidence(analysis: dict, article_text: str, context_text: str = ""):
+    """V5.9r4: verified NCI sheet rows for the response, or None. Never affects the score."""
+    rows = apply_sheet(analysis, article_text, context_text)
+    if rows is None:
+        return None
+    return [SheetEvidence(name=r["item"], status=r["status"], quote=r["quote"]) for r in rows]
 
 
 def _fallback_response(error_msg: str) -> ANIResponse:

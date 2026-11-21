@@ -138,6 +138,42 @@ def save_to_cache(url: str, data: dict, ani_score: int):
         traceback.print_exc()
 
 
+# V5.9r5 CONTENT CACHE: the same article text always gets the same score.
+# Keyed on a hash of the normalized title + text and the scoring version, so a
+# syndicated story on two URLs, or a rescan after the URL cache expires, returns the
+# stored result. No TTL: a new scoring version gets a new key instead. Stored in the
+# existing scan_cache table (url_hash = "text:<version>:<sha256>"), so no schema change.
+def get_content_hash(text: str, title: str, version: str) -> str:
+    norm = " ".join(f"{title or ''} {text or ''}".lower().split())
+    return f"text:{version}:" + hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
+
+def check_content_cache(text: str, title: str, version: str):
+    if not supabase:
+        return None
+    key = get_content_hash(text, title, version)
+    try:
+        rows = supabase.table("scan_cache").select("*").eq("url_hash", key).execute().data
+        if rows:
+            print(f"✅ Content cache HIT: {key[:28]}... score={rows[0].get('ani_score')}")
+            return rows[0]["scan_data"]
+    except Exception as e:
+        print(f"❌ Content cache check error: {e}")
+    return None
+
+
+def save_content_cache(text: str, title: str, version: str, data: dict, ani_score: int):
+    if not supabase or data.get("verdict") == "Analysis Error":
+        return
+    key = get_content_hash(text, title, version)
+    try:
+        supabase.table("scan_cache").delete().eq("url_hash", key).execute()
+        supabase.table("scan_cache").insert({"url_hash": key, "url": "content-hash",
+                                             "ani_score": ani_score, "scan_data": data}).execute()
+    except Exception as e:
+        print(f"❌ Content cache save error: {e}")
+
+
 def clear_cache(url: str) -> bool:
     """Manually clear a cached URL (for testing/debugging)."""
     if not supabase:

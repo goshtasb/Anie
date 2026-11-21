@@ -488,6 +488,79 @@ Synapse is the internal product management system that issues feature requests a
 - `sanitize_output()` function with 8 regex pattern groups
 - Catches: "NCI Marker #13", "Marker #7", "#13 - Artificial Urgency", etc.
 
+### V5.7 - Position vs Technique (Opinion Leniency Fix)
+**Directive:** Opinion pieces may argue a side, but spin techniques inside them are not excused.
+
+**Why:** The old rule ("IF OPINION: Leniency on bias (60-80 unless false claims)") acted as a score floor. Partisan and state-media pieces got classified as opinion and landed in the 35-55 range instead of being scored on the markers they triggered.
+
+**Implementation:**
+- Advocacy, a stated thesis and first-person voice carry no deduction
+- All 24 markers in the author's voice are deducted at full rate; Score Ceilings, Red Lines and the Weakest Link Rule apply as for news
+- No 60-80 floor: clean opinion can score 80+, spin-loaded opinion can score below 40
+- Opinion must be earned: text formatted as news is classified as NEWS
+
+### V5.8 - Stacking Rule
+**Directive:** Score bands are ceilings, never floors.
+
+**Why:** "4+ tactics = 40-59" meant an article with 7 tactics in the author's voice still scored about 40 unless a Red Line fired.
+
+**Implementation:**
+- 4-5 tactics = 40-59; 6-7 tactics = 25-39; 8+ tactics = below 25
+- Quote Shield still applies; each distinct tactic counts once
+
+### V5.9 - Itemized Ledger (Rules Applied in Code)
+**Directive:** The model judges each of the 24 markers; the code applies the scoring rules.
+
+**Why:** In testing, the model's own scores broke the prompt's rules on 8 of 10 articles (band caps, Weakest Link, verdict key). The code's verdict mapping (<=30/<=50/<=70/<=85) also differed from the prompt's VERDICT KEY, and the style-only path skipped the Weakest Link Rule.
+
+**Implementation:**
+- Model returns `nci_ledger`: one row per marker 1-24 with `hit`, `voice` (author/quoted), an exact `quote` (25 words max), and `target` (subject/object) for High-Arousal Loading
+- `rulebook.py` keeps a hit only if its quote appears verbatim in the article, drops quoted-voice hits (Quote Shield) and object-target arousal hits (Target Rule)
+- Code computes vectors, final score and verdict: deductions 15 standard / 20 cold (top of stated ranges), vector caps, Score Ceilings (75 / 65), Red Lines, full consensus cap, stacking bands as ceilings, Weakest Link (+5), prompt VERDICT KEY
+- Same rules on the Tavily path and the style-only path; response gains an optional `checklist` (marker names only, no NCI numbers)
+- Falls back to the old scoring if the ledger is missing; `max_tokens` raised 2000 -> 4000
+- Tests: `aegis-backend/test_rulebook.py`
+
+### V5.9r4 - NCI Sheet Evidence
+**Directive:** Run every article through the full NCI Engineered Reality sheet (20 items), not only the 24 markers.
+
+**Why:** The 24 markers cover about 12 of the sheet's 20 items. Eight were never checked: Timing, Uniform Messaging, Overuse of Novelty, Financial/Political Gain, Emotional Repetition, Manufactured Outrage, Rapid Behavior Shifts, Historical Parallels.
+
+**Implementation:**
+- Model returns `nci_sheet`: 8 rows of {item, status, quote}; `rulebook.apply_sheet` verifies each quote verbatim
+- Status: present (quote verified) / absent / needs_search / unverified (claimed without a verbatim quote)
+- Timing, Uniform Messaging, Financial/Political Gain and Rapid Behavior Shifts can't be judged from one article: they stay `needs_search` on the style-only path; on the Tavily path the model may quote the search results, and the quote is verified against them
+- **Evidence only:** the sheet never changes `ani_score`, caps, deductions or verdict. Returned as `sheet_evidence` on the response
+
+### V5.9r5 - Single-Tactic Rule + Same Article, Same Score
+**Directive:** One loaded phrase must not drag a straight story to 64, and the same article must get the same score on every scan.
+
+**Why:** On the Nov 2026 held-out set, one counted High-Arousal phrase in an AP story capped its vector at 59, so Weakest Link made the final 64 (a false alarm). Reruns of the same article also moved by up to 9 points, and the URL cache expires after 12 hours.
+
+**Implementation:**
+- `rulebook.py`: when only ONE tactic counts, the vector caps (#3, #4, #14, #16) and the 75 ceiling don't apply; the 1-3 tactic band (max 79) and Red Lines still do. Two or more tactics: rules unchanged. Prompt text updated to match
+- `services.py` content cache: key = sha256 of normalized title + text plus `ENGINE_VERSION`, stored in the existing `scan_cache` table as `url_hash = "text:<version>:<hash>"` (no schema change), no TTL; error results never cached. `main.py` checks it before calling Grok
+- Style-only path temperature 0.2 -> 0.0 (main path was already 0.0)
+- Bump `ENGINE_VERSION` in `engine.py` on any prompt or rulebook change, so old cached scores aren't served for a new version
+- Note: `DELETE /v1/cache/clear` with no URL wipes the whole table, content entries included
+- Tests: `aegis-backend/test_rulebook.py`, `aegis-backend/test_content_cache.py`
+
+### V5.10 - High-Arousal Word List
+**Directive:** The same article must get the same High-Arousal (#14) result every time, judged only on the journalist's own words.
+
+**Why:** In the V5.9r5 test, 4 of 4 reruns scored differently, and #14 caused 3 of those flips (an AP story went 79 -> 100 between runs on "ran aground"). The model's #14 call was the biggest source of drift.
+
+**Implementation:**
+- `aegis-backend/arousal.py`: a fixed list of emotive words that straight wire copy avoids (horror/disgust, contempt, hype, headline attack verbs, pejorative labels). Whole-word, case-insensitive match
+- Quote Shield in code: text inside double quotes, curly quotes or single-quoted phrases is blanked before matching; apostrophes are left alone
+- Each hit returns the sentence it sits in as the evidence quote
+- `rulebook.py` uses the code result for #14 and ignores the model's #14 row. Commercial content keeps Target Rule object leniency (hits shown as `object`, not counted)
+- **V5.9r5 single-tactic rule withdrawn.** It existed so one loaded phrase couldn't drag straight news to 64; with the word list no straight article in the test sets trips #14, and the rule let a one-tactic Sputnik story score 79. Prompt text reverted to match
+- `ENGINE_VERSION` = "5.10", so content-cache entries from 5.9r5 aren't reused
+- Tested with zero model calls by rescoring 67 saved ledgers on 28 articles: no #14 hit on any of the 9 straight articles; same-article rerun pairs that differ went from 8 of 9 to 5 of 9 (the rest come from other markers)
+- Tests: `aegis-backend/test_arousal.py` plus updated `test_rulebook.py`
+- Limitation: the list only catches the words on it. The model's analysis prose may still mention High-Arousal language the list doesn't score
+
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.
 
