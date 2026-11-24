@@ -73,3 +73,8 @@ def test_commercial_content_keeps_object_leniency():
     data = dict(_ledger(), content_type="commercial")
     r = apply_rulebook(data, "TITLE: Phone\nThe stunning, shocking new phone is here.")
     assert r["score"] == 100 and r["checklist"][13]["status"] == "object"
+
+
+def test_weather_idiom_is_not_a_hit():
+    # V5.10.1: "wicked" dropped; AP wrote "Wicked weather on both coasts" in a travel story.
+    assert find_arousal("Wicked weather on both coasts. Storms will slow flights.") == []

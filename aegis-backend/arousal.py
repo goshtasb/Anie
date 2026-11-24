@@ -16,7 +16,7 @@ import re
 AROUSAL_WORDS = sorted({
     # horror and disgust
     "horrific", "horrifying", "horrendous", "appalling", "atrocious", "monstrous",
-    "despicable", "sickening", "disgusting", "vile", "evil", "wicked", "heinous",
+    "despicable", "sickening", "disgusting", "vile", "evil", "heinous",
     "abhorrent", "deplorable", "shameful", "shameless", "disgraceful", "outrageous",
     "scandalous", "nightmarish", "terrifying", "chilling",
     # mockery and contempt

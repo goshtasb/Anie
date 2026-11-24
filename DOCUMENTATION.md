@@ -561,6 +561,18 @@ Synapse is the internal product management system that issues feature requests a
 - Tests: `aegis-backend/test_arousal.py` plus updated `test_rulebook.py`
 - Limitation: the list only catches the words on it. The model's analysis prose may still mention High-Arousal language the list doesn't score
 
+### V5.10.1 - Word List Fix (Nov 24, 2026)
+**Why:** On a new held-out set of 8 articles (Nov 21-23: 4 AP/Reuters wire stories; RT, Gateway Pundit, Global Times, Common Dreams), an AP travel story hit the list on "Wicked weather on both coasts" and dropped to 64.
+
+**Change:** "wicked" removed from the list (it is a common weather/slang idiom, not loaded language in wire copy). `ENGINE_VERSION` = "5.10.1".
+
+**Held-out result (20 calls, Claude Sonnet standing in for Grok):**
+- Straight news: 4 of 4 wire stories 100 after the fix (plain Claude 88-93)
+- Spin: RT 54, Global Times 54, Gateway Pundit 70, Common Dreams 75 (plain Claude 30, 30, 58, 28)
+- Gap (straight minus spin): 32 vs plain Claude 53, so plain Claude still ranks spin better
+- Reruns: 3 of 4 identical; Gateway Pundit went 70 -> 100 (the model found 2 markers once, none the second time)
+- Cause of the misses: the list doesn't hold the loaded phrases these stories used ("scandal-plagued", "dangerously deteriorating"); the model flagged them, but V5.10 ignores the model's #14. Counting the model's #14 again brings back false alarms on older sets, so it was not adopted
+
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.
 
