@@ -573,6 +573,25 @@ Synapse is the internal product management system that issues feature requests a
 - Reruns: 3 of 4 identical; Gateway Pundit went 70 -> 100 (the model found 2 markers once, none the second time)
 - Cause of the misses: the list doesn't hold the loaded phrases these stories used ("scandal-plagued", "dangerously deteriorating"); the model flagged them, but V5.10 ignores the model's #14. Counting the model's #14 again brings back false alarms on older sets, so it was not adopted
 
+### V5.11 - Every Rule Answered, Score From Code Only (Nov 24, 2026)
+**Why (owner's rules):** Rule 1, every article must run through all the rules. Rule 2, Anie cannot guess; the score must follow from the rules.
+
+**Change:**
+- `rulebook._read_ledger` returns nothing unless all 24 markers have a yes/no answer. A missing or malformed row is no longer read as "clear"
+- `engine.analyze_text` scores only from `apply_rulebook`. The model's own `ani_score`, vector scores, min-vector check and consistency boost are no longer used on either path
+- An incomplete ledger returns verdict "Analysis Incomplete" with no score, instead of falling back to the model's number
+- The result reports `rules_checked` (always 24) and the full 24-row checklist with each answer and quote
+- `ENGINE_VERSION` = "5.11"; prompt text unchanged
+- Tests: 3 new in `test_rulebook.py` (23 rows gives no score, a non yes/no answer gives no score, the model's number is ignored)
+
+**Determinism test (8 held-out articles x 3 runs, Claude Sonnet standing in for Grok, which can't be set to temperature 0):**
+- Rule coverage: 24 of 24 answered on all 24 runs
+- Same answers give the same score every time (code only)
+- 6 of 8 articles scored identically on all 3 runs
+- 4 of 192 rule answers changed between runs: #1 Source Amnesia twice, #22 Agency Deletion once, #7 In-Group/Out-Group once
+- Gateway Pundit went 70 / 100 / 79 and Common Dreams 75 / 100 / 100 because of those flips
+- Production Grok runs at temperature 0 and caches by text hash, so a repeat scan of the same text returns the same result
+
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.
 

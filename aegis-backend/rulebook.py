@@ -99,18 +99,23 @@ def quote_in_article(quote: str, article_norm: str) -> bool:
 
 
 def _read_ledger(analysis: dict):
+    """Return {marker: row} only when every one of the 24 markers has a yes/no answer.
+    V5.11 (Rule 1): a ledger that skips any rule is rejected, never read as "clear"."""
     rows = analysis.get("nci_ledger") if isinstance(analysis, dict) else None
     if not isinstance(rows, list) or not rows:
         return None
     by_marker = {}
     for row in rows:
-        if isinstance(row, dict) and isinstance(row.get("marker"), int) and row["marker"] in MARKERS:
+        if (isinstance(row, dict) and isinstance(row.get("marker"), int) and row["marker"] in MARKERS
+                and isinstance(row.get("hit"), bool)):
             by_marker.setdefault(row["marker"], row)
+    if set(by_marker) != set(MARKERS):
+        return None
     return by_marker
 
 
 def apply_rulebook(analysis: dict, article_text: str):
-    """Score an analysis from its nci_ledger. Returns None when there is no usable ledger."""
+    """Score an analysis from its nci_ledger. Returns None unless all 24 markers were answered."""
     by_marker = _read_ledger(analysis)
     if by_marker is None:
         return None
@@ -176,7 +181,7 @@ def apply_rulebook(analysis: dict, article_text: str):
     final = max(0, final)
 
     return {"score": final, "verdict": verdict_for(final), "vectors": vectors,
-            "tactic_count": len(counted), "checklist": checklist,
+            "tactic_count": len(counted), "rules_checked": len(checklist), "checklist": checklist,
             "flags": {v: [c["quote"] for c in checklist if c["counted"] and c["vector"] == v] for v in VECTORS}}
 
 

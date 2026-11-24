@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 # Strips ALL internal codes from user-facing output
 # ============================================================
 # Bump on any change to the prompt, rulebook or word list; the content cache is keyed on it.
-ENGINE_VERSION = "5.10.1"
+ENGINE_VERSION = "5.11"
 
 
 def sanitize_output(text: str) -> str:
@@ -697,12 +697,10 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                     "logical_integrity": "logic"
                 }
 
-                vector_scores = []
                 for api_key, ui_key in vector_mapping.items():
                     if api_key in raw_vectors:
                         v = raw_vectors[api_key]
                         score = v.get("score", 50)
-                        vector_scores.append(score)
                         # V5.5: Sanitize analysis text to remove any leaked NCI codes
                         vectors[ui_key] = VectorScore(
                             score=score,
@@ -710,57 +708,23 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
                             analysis=sanitize_output(v.get("analysis", "No analysis"))
                         )
 
-                # ENFORCE MINIMUM SCORE RULE (for NEWS content - catches bad articles)
-                ai_score = analysis.get("ani_score", 50)
-                min_vector = min(vector_scores) if vector_scores else 50
-                avg_vector = sum(vector_scores) / len(vector_scores) if vector_scores else 50
-
-                # Start with AI's score constrained by minimum vector
-                final_score = min(ai_score, min_vector)
-
-                # CONSISTENCY BOOST (capped by Weakest Link Rule)
-                # Raise final_score toward the vector average when the AI under-scored,
-                # but never more than 5 points above the lowest vector. This preserves
-                # the prompt's explicit rule: "Final ANI Score MUST NOT exceed the
-                # lowest Vector Score by more than 5 points."
-                if avg_vector > final_score and min_vector >= 70:
-                    boosted = min(int(avg_vector), min_vector + 5)
-                    if boosted > final_score:
-                        print(f"📈 Consistency Boost: avg={avg_vector:.0f}, min={min_vector}, {final_score}→{boosted}")
-                        final_score = boosted
-
-                print(f"🔥 Psyop Hunter Result: AI={ai_score}, MinVector={min_vector}, AvgVector={avg_vector:.0f}, Final={final_score}")
-
-                # V5.9 ITEMIZED LEDGER: when the model returned a ledger, the score is
-                # computed in code from verified, quoted markers (rulebook.py).
+                # V5.11 (Rules 1 and 2): the score comes only from code applying every
+                # rule to the model's 24 yes/no answers. The model's own number is never used.
                 rb = apply_rulebook(analysis, f"{title or ''}\n{text}")
+                if not rb:
+                    return _incomplete_response()
                 checklist = _apply_rulebook_to_vectors(rb, vectors)
                 # V5.9r4: NCI sheet items, evidence only. The search-dependent items
                 # (timing, uniform messaging, gain, behavior shifts) can quote Tavily results here.
                 sheet = _sheet_evidence(analysis, f"{title or ''}\n{text}",
                                         "\n".join(search_results.get("results", [])))
-                if rb:
-                    final_score = rb["score"]
-                    print(f"📒 Ledger Result: tactics={rb['tactic_count']}, Final={final_score}")
-
-                # Determine verdict based on final score
-                if rb:
-                    verdict = rb["verdict"]
-                elif final_score <= 30:
-                    verdict = "Engineered Narrative"
-                elif final_score <= 50:
-                    verdict = "High Manipulation"
-                elif final_score <= 70:
-                    verdict = "Moderate Spin"
-                elif final_score <= 85:
-                    verdict = "Light Spin"
-                else:
-                    verdict = "Organic Reporting"
+                final_score, verdict = rb["score"], rb["verdict"]
+                print(f"📒 Ledger Result: rules={rb['rules_checked']}, tactics={rb['tactic_count']}, Final={final_score}")
 
                 # Build fact_check response (for UI compatibility)
                 # V5.5: Sanitize analysis text
                 fact_check = FactCheckVector(
-                    score=raw_vectors.get("reality_anchoring", {}).get("score", 50),
+                    score=rb["vectors"]["reality_anchoring"],  # V5.11: from the rules, not the model
                     claims_checked=[c.get("claim", "") for c in citations],
                     flags=raw_vectors.get("reality_anchoring", {}).get("flags", []),
                     sources=search_results.get("sources", []),
@@ -824,14 +788,16 @@ async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIR
 
         # V5.9 ITEMIZED LEDGER: score computed in code from verified, quoted markers
         rb = apply_rulebook(data, f"{title or ''}\n{text}")
+        if not rb:
+            return _incomplete_response()  # V5.11: no score unless every rule was answered
         checklist = _apply_rulebook_to_vectors(rb, vectors)
         sheet = _sheet_evidence(data, f"{title or ''}\n{text}")  # no search: those items stay needs_search
 
         # V5.5: Sanitize summary
         return ANIResponse(
-            ani_score=rb["score"] if rb else data.get("ani_score", 50),
+            ani_score=rb["score"],
             summary=sanitize_output(data.get("summary", "Style-only psyop analysis (no external verification).")),
-            verdict=rb["verdict"] if rb else data.get("verdict", "Analysis Complete"),
+            verdict=rb["verdict"],
             origin_location=data.get("origin_location", "Global"),
             vectors=vectors,
             fact_check=None,
@@ -868,6 +834,13 @@ def _sheet_evidence(analysis: dict, article_text: str, context_text: str = ""):
     if rows is None:
         return None
     return [SheetEvidence(name=r["item"], status=r["status"], quote=r["quote"]) for r in rows]
+
+
+def _incomplete_response() -> ANIResponse:
+    """V5.11: the model skipped at least one of the 24 rules, so no score is given."""
+    resp = _fallback_response("Not every checklist rule was answered, so no score was given. Please scan again.")
+    resp.verdict = "Analysis Incomplete"
+    return resp
 
 
 def _fallback_response(error_msg: str) -> ANIResponse:

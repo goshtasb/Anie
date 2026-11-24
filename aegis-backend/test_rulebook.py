@@ -160,3 +160,21 @@ def test_sheet_never_changes_the_score():
 
 def test_sheet_missing_returns_none():
     assert apply_sheet({}, SHEET_ARTICLE) is None
+
+
+# --- V5.11: Rule 1 (every rule answered) and Rule 2 (no guessing) ---
+def test_ledger_missing_a_rule_gives_no_score():
+    led = [{"marker": n, "hit": False, "voice": None, "quote": ""} for n in range(1, 24)]  # 23 rows
+    assert apply_rulebook({"nci_ledger": led, "ani_score": 90}, "TITLE: x\nText.") is None
+
+
+def test_ledger_row_without_yes_no_gives_no_score():
+    led = [{"marker": n, "hit": False, "voice": None, "quote": ""} for n in range(1, 25)]
+    led[4]["hit"] = "maybe"
+    assert apply_rulebook({"nci_ledger": led}, "TITLE: x\nText.") is None
+
+
+def test_model_number_is_ignored_and_all_rules_reported():
+    led = [{"marker": n, "hit": False, "voice": None, "quote": ""} for n in range(1, 25)]
+    r = apply_rulebook({"nci_ledger": led, "ani_score": 12, "verdict": "Engineered Narrative"}, "TITLE: x\nText.")
+    assert r["score"] == 100 and r["rules_checked"] == 24 and len(r["checklist"]) == 24
