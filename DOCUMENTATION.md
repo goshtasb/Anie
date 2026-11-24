@@ -592,6 +592,24 @@ Synapse is the internal product management system that issues feature requests a
 - Gateway Pundit went 70 / 100 / 79 and Common Dreams 75 / 100 / 100 because of those flips
 - Production Grok runs at temperature 0 and caches by text hash, so a repeat scan of the same text returns the same result
 
+### V5.12 - Rules 1, 7 and 22 Checked in Code (Nov 24, 2026)
+**Why:** In the V5.11 test these were the only rules whose model answers changed between runs (4 of 192). The owner asked for them to become code checks.
+
+**Change:**
+- New `aegis-backend/rule_checks.py`: fixed phrase tests written from each rule's definition, with the Quote Shield. The model's rows for #1, #7 and #22 are ignored, as with #14
+  - #1 Source Amnesia: unnamed experts, analysts or studies making a claim ("experts say", "studies show", "it is widely believed"), unless the same sentence names the source ("experts at", "according to", a named journal, university or institute)
+  - #7 In-Group/Out-Group: pejorative or monolith group labels ("Democrat-led", "radical left", "the left's", "globalists", "Trump regime", "Kyiv regime"). Descriptive wire terms such as "far-right" and "Republican-led" are not on the list
+  - #22 Agency Deletion: passives that hide the actor ("mistakes were made", "questions have been raised", "it was decided"), unless "by" names the actor
+- `arousal.find_in_narration` is the shared quote-shielded finder for #14 and the three new checks
+- `ENGINE_VERSION` = "5.12"
+- Tests: `aegis-backend/test_rule_checks.py` (6) plus 2 in `test_rulebook.py`; fixtures no longer rely on model hits for #1 or #7
+
+**Rescore of every saved run (no model calls, `v512-rescore.txt` in the test folder):**
+- Nov 21-23 set, 3 runs each: 8 of 8 articles now score the same on all 3 runs (was 6 of 8)
+- Wire stories: no #1, #7 or #22 hit on any of the 13 wire articles in the saved sets
+- Gateway Pundit and Common Dreams now score 100 on every run: their flagged phrasing ("federal officials are warning", "was reportedly canceled") is not on the lists
+- Limitation: a phrase test only catches the wording on its list, so stable is not the same as complete
+
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.
 

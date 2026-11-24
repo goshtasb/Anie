@@ -1,8 +1,8 @@
 """Tests for rulebook.py: the NCI checklist scoring rules enforced in code."""
 from rulebook import apply_rulebook, verdict_for, band_cap
 
-ARTICLE = ('TITLE: Test\nThe rising crime wave in Democrat-led cities continues. '
-           'Officials said "these parasites must go". Experts say crime is up. '
+ARTICLE = ('TITLE: Test\nThe rising crime wave in downtown cities continues. '
+           'Officials said "these parasites must go". Reports say crime is up. '
            'Smart people already know it will happen anyway. No drama, no villains.')
 # V5.10: #14 is found by the word list in code, so the 14 tests use narration with a list word.
 HOT = ARTICLE + ' The horrific crime wave goes on.'
@@ -19,9 +19,9 @@ def test_clean_article_scores_organic():
     assert len(r["checklist"]) == 24 and not any(c["counted"] for c in r["checklist"])
 
 def test_hit_without_verbatim_quote_is_dropped():
-    r = apply_rulebook(ledger((1, "author", "studies prove everything")), ARTICLE)
+    r = apply_rulebook(ledger((2, "author", "studies prove everything")), ARTICLE)
     assert r["score"] == 100
-    item = r["checklist"][0]
+    item = r["checklist"][1]
     assert item["hit"] is False and item["status"] == "unverified"
 
 def test_quote_shield_quoted_voice_not_counted():
@@ -29,12 +29,13 @@ def test_quote_shield_quoted_voice_not_counted():
     assert r["score"] == 100 and r["checklist"][9]["status"] == "quoted"
 
 def test_one_tactic_stays_in_moderate_band():
-    r = apply_rulebook(ledger((1, "author", "Experts say crime is up")), ARTICLE)
+    r = apply_rulebook(ledger((2, "author", "Reports say crime is up")), ARTICLE)
     assert 60 <= r["score"] <= 79
 
 def test_both_ceilings_cap_at_65():
-    r = apply_rulebook(ledger((7, "author", "Democrat-led cities"), (14, "author", "horrific crime wave")), HOT)
-    assert r["score"] <= 65
+    art = HOT + " Crime in Democrat-led cities rose."   # V5.12: #7 found by code
+    r = apply_rulebook(ledger((14, "author", "horrific crime wave")), art)
+    assert r["score"] <= 65 and r["checklist"][6]["status"] == "counted"
 
 def test_dehumanization_in_author_voice_is_red_line():
     art = ARTICLE + " These parasites are ruining the city."
@@ -47,20 +48,20 @@ def test_full_consensus_engineering():
     assert r["score"] < 30
 
 def test_stacking_bands_are_ceilings():
-    hits = [(n, "author", "Experts say crime is up") for n in (1, 2, 5, 8, 9, 11)]
+    hits = [(n, "author", "Reports say crime is up") for n in (2, 5, 8, 9, 11, 12)]
     assert apply_rulebook(ledger(*hits), ARTICLE)["score"] <= 39
-    hits += [(n, "author", "Experts say crime is up") for n in (21, 23)]
+    hits += [(n, "author", "Reports say crime is up") for n in (21, 23)]
     assert apply_rulebook(ledger(*hits), ARTICLE)["score"] < 25
 
 def test_weakest_link_and_vector_caps():
-    r = apply_rulebook(ledger((4, "author", "Experts say crime is up"), (1, "author", "Experts say crime is up")), ARTICLE)
+    r = apply_rulebook(ledger((4, "author", "Reports say crime is up"), (2, "author", "Reports say crime is up")), ARTICLE)
     assert r["vectors"]["reality_anchoring"] <= 49
     assert r["score"] <= r["vectors"]["reality_anchoring"] + 5
 
 def test_curly_quotes_and_ellipsis_verify():
     art = "He said it was “the worst day” and then left the room quietly."
-    r = apply_rulebook(ledger((1, "author", '"the worst day" ... left the room')), art)
-    assert r["checklist"][0]["status"] == "counted"
+    r = apply_rulebook(ledger((2, "author", '"the worst day" ... left the room')), art)
+    assert r["checklist"][1]["status"] == "counted"
 
 def test_missing_ledger_returns_none():
     assert apply_rulebook({"ani_score": 50}, ARTICLE) is None
@@ -93,14 +94,14 @@ def test_single_high_arousal_word_caps_at_64():
 
 def test_single_vector_capped_marker_keeps_cap():
     for n in (3, 4, 16):
-        r = apply_rulebook(ledger((n, "author", "Experts say crime is up")), ARTICLE)
+        r = apply_rulebook(ledger((n, "author", "Reports say crime is up")), ARTICLE)
         assert r["score"] <= 54, n
 
 def test_single_red_line_still_crashes():
     art = ARTICLE + " These parasites are ruining the city."
     assert apply_rulebook(ledger((10, "author", "These parasites are ruining the city")), art)["score"] <= 29
-    assert apply_rulebook(ledger((6, "author", "Experts say crime is up")), ARTICLE)["score"] <= 24
-    assert apply_rulebook(ledger((20, "author", "Experts say crime is up")), ARTICLE)["score"] <= 29
+    assert apply_rulebook(ledger((6, "author", "Reports say crime is up")), ARTICLE)["score"] <= 24
+    assert apply_rulebook(ledger((20, "author", "Reports say crime is up")), ARTICLE)["score"] <= 29
 
 
 # --- V5.9r4: NCI sheet items (evidence only, never scored) ---
@@ -178,3 +179,19 @@ def test_model_number_is_ignored_and_all_rules_reported():
     led = [{"marker": n, "hit": False, "voice": None, "quote": ""} for n in range(1, 25)]
     r = apply_rulebook({"nci_ledger": led, "ani_score": 12, "verdict": "Engineered Narrative"}, "TITLE: x\nText.")
     assert r["score"] == 100 and r["rules_checked"] == 24 and len(r["checklist"]) == 24
+
+
+# --- V5.12: #1, #7 and #22 come from code, never the model ---
+def test_model_answers_on_code_checked_rules_are_ignored():
+    rows = ledger((1, "author", "Reports say crime is up"), (7, "author", "Reports say crime is up"),
+                  (22, "author", "Reports say crime is up"))
+    r = apply_rulebook(rows, ARTICLE)
+    assert r["score"] == 100 and [r["checklist"][i]["status"] for i in (0, 6, 21)] == ["clear"] * 3
+
+
+def test_code_checked_rules_count_from_the_text_alone():
+    art = ARTICLE + " Experts say it will get worse. Mistakes were made."
+    r = apply_rulebook(ledger(), art)
+    assert r["checklist"][0]["status"] == "counted" and r["checklist"][21]["status"] == "counted"
+    assert r["checklist"][0]["quote"] == "Experts say it will get worse."
+    assert r["tactic_count"] == 2
