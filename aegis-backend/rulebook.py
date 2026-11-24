@@ -11,7 +11,6 @@
 import re
 
 from arousal import find_arousal
-from rule_checks import CODE_CHECKS
 
 # marker -> (concept name, vector key)
 MARKERS = {
@@ -128,11 +127,6 @@ def apply_rulebook(analysis: dict, article_text: str):
         claimed = bool(row.get("hit"))
         quote = (row.get("quote") or "").strip()
         voice = (row.get("voice") or "").lower()
-        if n in CODE_CHECKS:
-            # V5.12: #1, #7 and #22 come from fixed phrase tests in code, never the model's call.
-            hits = CODE_CHECKS[n](article_text)
-            claimed, quote, voice = bool(hits), (hits[0]["sentence"] if hits else ""), "author"
-            row = {}
         if n == HIGH_AROUSAL:
             # V5.10: #14 comes from the fixed word list in code, never the model's call.
             hits = find_arousal(article_text)
@@ -141,7 +135,7 @@ def apply_rulebook(analysis: dict, article_text: str):
                    else "subject"}
         if not claimed:
             status = "clear"
-        elif n != HIGH_AROUSAL and n not in CODE_CHECKS and not quote_in_article(quote, article_norm):
+        elif n != HIGH_AROUSAL and not quote_in_article(quote, article_norm):
             status = "unverified"   # no quote, no hit
         elif voice == "quoted":
             status = "quoted"       # Quote Shield

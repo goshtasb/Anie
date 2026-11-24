@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 # Strips ALL internal codes from user-facing output
 # ============================================================
 # Bump on any change to the prompt, rulebook or word list; the content cache is keyed on it.
-ENGINE_VERSION = "5.12"
+ENGINE_VERSION = "5.13"
 
 
 def sanitize_output(text: str) -> str:

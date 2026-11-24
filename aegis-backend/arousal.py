@@ -49,23 +49,14 @@ def strip_quoted(text: str) -> str:
     return _QUOTED_RE.sub(lambda m: " " * len(m.group(0)), text or "")
 
 
-def find_in_narration(pattern, text: str, accept=None) -> list:
-    """Return [{"word", "sentence"}] for each match of a compiled pattern in the narration.
-    Quoted speech is blanked first (THE QUOTE SHIELD). accept(narration_sentence, match),
-    when given, can reject a match (used for attribution exemptions in rule_checks.py)."""
+def find_arousal(text: str) -> list:
+    """Return [{"word", "sentence"}] for each list word in the narration, in order."""
     narration = strip_quoted(text)
     hits = []
     for m in _SENTENCE_RE.finditer(text or ""):
         sentence = m.group(0)
         if not sentence.strip():
             continue
-        nar_sentence = narration[m.start():m.end()]
-        for w in pattern.finditer(nar_sentence):
-            if accept is None or accept(nar_sentence, w):
-                hits.append({"word": w.group(1).lower(), "sentence": sentence.strip()})
+        for w in _WORD_RE.finditer(narration[m.start():m.end()]):
+            hits.append({"word": w.group(1).lower(), "sentence": sentence.strip()})
     return hits
-
-
-def find_arousal(text: str) -> list:
-    """Return [{"word", "sentence"}] for each list word in the narration, in order."""
-    return find_in_narration(_WORD_RE, text)

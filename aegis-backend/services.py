@@ -55,8 +55,18 @@ def get_nuclear_hash(url: str) -> str:
         return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 
-def check_cache(url: str):
-    """Check cache using NUCLEAR URL hash with 24-hour TTL."""
+# V5.13: results that carry no real score are never stored, so a skipped rule or an
+# outage can't be served back as the article's answer.
+NOT_CACHEABLE_VERDICTS = ("Analysis Error", "Analysis Incomplete")
+
+
+def is_cacheable(data: dict) -> bool:
+    return isinstance(data, dict) and data.get("verdict") not in NOT_CACHEABLE_VERDICTS
+
+
+def check_cache(url: str, version: str = None):
+    """Check cache using NUCLEAR URL hash with a TTL. V5.13: with a version, an entry
+    scored by a different engine version is a miss, so a rule change takes effect at once."""
     if not supabase:
         print("⚠️ Cache Check: Supabase not configured, skipping cache")
         return None
@@ -94,8 +104,12 @@ def check_cache(url: str):
                 supabase.table("scan_cache").delete().eq("url_hash", url_hash).execute()
                 return None
 
+            scan_data = cached_entry["scan_data"]
+            if version and (scan_data or {}).get("engine_version") != version:
+                print(f"🔁 Cache entry is from another engine version, rescoring")
+                return None
             print(f"✅ Cache HIT (valid, {age_hours:.1f}h old): returning cached score={cached_score}")
-            return cached_entry["scan_data"]
+            return scan_data
         else:
             print("📭 Cache MISS: No entry found, will call Grok")
     except Exception as e:
@@ -108,6 +122,10 @@ def save_to_cache(url: str, data: dict, ani_score: int):
     """Save result using NUCLEAR URL hash."""
     if not supabase:
         print("⚠️ Cache Save: Supabase not configured, skipping")
+        return
+
+    if not is_cacheable(data):
+        print("⚠️ Cache Save: no real score in this result, not stored")
         return
 
     url_hash = get_nuclear_hash(url)
@@ -163,7 +181,7 @@ def check_content_cache(text: str, title: str, version: str):
 
 
 def save_content_cache(text: str, title: str, version: str, data: dict, ani_score: int):
-    if not supabase or data.get("verdict") == "Analysis Error":
+    if not supabase or not is_cacheable(data):
         return
     key = get_content_hash(text, title, version)
     try:

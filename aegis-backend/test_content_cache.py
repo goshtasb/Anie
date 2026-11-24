@@ -55,3 +55,23 @@ def test_error_results_are_never_cached(monkeypatch):
 def test_no_supabase_means_no_cache(monkeypatch):
     monkeypatch.setattr(services, "supabase", None)
     assert services.check_content_cache("Body " * 50, "T", "5.9r5") is None
+
+
+# --- V5.13: only real scores are stored, and the URL cache respects the engine version ---
+def test_incomplete_results_are_never_cached(monkeypatch):
+    db = FakeDB()
+    monkeypatch.setattr(services, "supabase", db)
+    services.save_content_cache("Body " * 50, "T", "5.13", {"ani_score": 50, "verdict": "Analysis Incomplete"}, 50)
+    services.save_to_cache("https://example.com/a", {"ani_score": 50, "verdict": "Analysis Incomplete"}, 50)
+    assert db.rows == []
+
+
+def test_url_cache_from_another_engine_version_is_a_miss(monkeypatch):
+    from datetime import datetime, timezone
+    db = FakeDB()
+    monkeypatch.setattr(services, "supabase", db)
+    now = datetime.now(timezone.utc).isoformat()
+    db.rows.append({"url_hash": services.get_nuclear_hash("https://example.com/a"), "created_at": now,
+                    "ani_score": 70, "scan_data": {"ani_score": 70, "verdict": "Moderate Spin", "engine_version": "5.12"}})
+    assert services.check_cache("https://example.com/a", "5.13") is None
+    assert services.check_cache("https://example.com/a", "5.12")["ani_score"] == 70

@@ -147,7 +147,7 @@ async def scan_endpoint(
         tracking_params = {}
 
     # 1. CACHE CHECK (Nuclear hash strips all tracking params)
-    cached = services.check_cache(payload.url)
+    cached = services.check_cache(payload.url, ENGINE_VERSION)
     if cached:
         # LOG CACHE HIT (Background) - V4.8: Include enrichment data
         background_tasks.add_task(
@@ -199,10 +199,12 @@ async def scan_endpoint(
         result = ANIResponse(**by_text)
     else:
         result = await analyze_text(text_to_analyze, title=title)
-        services.save_content_cache(text_to_analyze, title, ENGINE_VERSION, result.model_dump(), result.ani_score)
+    stored = dict(result.model_dump(), engine_version=ENGINE_VERSION)
+    if not by_text:
+        services.save_content_cache(text_to_analyze, title, ENGINE_VERSION, stored, result.ani_score)
 
-    # 5. SAVE TO CACHE (Canonical URL)
-    services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
+    # 5. SAVE TO CACHE (Canonical URL), tagged with the engine version that scored it
+    services.save_to_cache(payload.url, stored, result.ani_score)
 
     # 6. LOG NEW SCAN EVENT (Background) - V4.8: Include enrichment data
     # Convert vectors to dict for logging

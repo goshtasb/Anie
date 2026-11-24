@@ -592,7 +592,7 @@ Synapse is the internal product management system that issues feature requests a
 - Gateway Pundit went 70 / 100 / 79 and Common Dreams 75 / 100 / 100 because of those flips
 - Production Grok runs at temperature 0 and caches by text hash, so a repeat scan of the same text returns the same result
 
-### V5.12 - Rules 1, 7 and 22 Checked in Code (Nov 24, 2026)
+### V5.12 - Rules 1, 7 and 22 Checked in Code (Nov 24, 2026) [WITHDRAWN in V5.13]
 **Why:** In the V5.11 test these were the only rules whose model answers changed between runs (4 of 192). The owner asked for them to become code checks.
 
 **Change:**
@@ -609,6 +609,24 @@ Synapse is the internal product management system that issues feature requests a
 - Wire stories: no #1, #7 or #22 hit on any of the 13 wire articles in the saved sets
 - Gateway Pundit and Common Dreams now score 100 on every run: their flagged phrasing ("federal officials are warning", "was reportedly canceled") is not on the lists
 - Limitation: a phrase test only catches the wording on its list, so stable is not the same as complete
+
+### V5.13 - Same Article, Same Answer, Through the Cache (Nov 24, 2026)
+**Why:** The owner rejected word lists for judging news (V5.12), and asked for the best architectural option for Rule 2 (no guessing, same result every time).
+
+**Decision:** determinism comes from the system, not from turning judgment rules into phrase tests.
+- Code alone computes the score from the 24 answers, and a missing answer means no score (V5.11, kept)
+- The content cache keys each result on the normalized title and text plus `ENGINE_VERSION`, with no expiry, so the same article text always returns the same stored result
+- #1, #7 and #22 go back to the model's yes/no with a verbatim quote that code verifies (V5.12 lists withdrawn)
+- #14 keeps the V5.10 word list for now (see below)
+
+**Cache fixes:**
+- "Analysis Incomplete" results (a skipped rule) are no longer stored in either cache; before, they were stored forever in the content cache
+- The URL cache now stores the engine version with each result and treats an entry from another version as a miss, so a rule change takes effect at once instead of up to 12 hours later
+- Tests: 2 new in `test_content_cache.py`
+
+**Grammar parser tested and not adopted:** a pinned spaCy parser (spaCy 3.8.7, en_core_web_sm 3.8.0) found unnamed speakers for #1 ("officials said", "experts say") and passives with no actor for #22. On 10 new articles from outside the test sets, and then on the saved test sets, it flagged AP wire stories as often as partisan ones: AP routinely writes "officials said" or "attorneys contend" after naming those people earlier in the story, and the parser can't see that. It also can't tell a reporting verb ("say") from other verbs that take a clause ("agree to"). The experiment code is kept outside the repo with the test files.
+
+**#14 lexicon check:** the NRC VAD arousal lexicon forbids redistribution and commercial use without a license. A CC BY 4.0 copy of the Warriner et al. (2013) arousal norms exists, but the original terms weren't confirmed. Neither was adopted.
 
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.
