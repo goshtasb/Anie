@@ -107,6 +107,9 @@ Acuity (Acuity Narrative Integrity Engine, also known as A.N.I.E.) is an AI-powe
 aegis-backend/
 ├── main.py           # FastAPI app, endpoints, CORS
 ├── engine.py         # AI analysis engine (Psyop Hunter)
+├── rulebook.py       # NCI checklist scoring rules, enforced in code (V5.9+)
+├── arousal.py        # High-Arousal (#14) fixed word list (V5.10)
+├── voting.py         # Majority vote across model runs on first scans (V5.14)
 ├── schemas.py        # Pydantic models for request/response
 ├── services.py       # Supabase cache, event logging
 ├── scraper.py        # URL content extraction
@@ -617,7 +620,7 @@ Synapse is the internal product management system that issues feature requests a
 - Code alone computes the score from the 24 answers, and a missing answer means no score (V5.11, kept)
 - The content cache keys each result on the normalized title and text plus `ENGINE_VERSION`, with no expiry, so the same article text always returns the same stored result
 - #1, #7 and #22 go back to the model's yes/no with a verbatim quote that code verifies (V5.12 lists withdrawn)
-- #14 keeps the V5.10 word list for now (see below)
+- #14 keeps the V5.10 word list (see below; made final in V5.14)
 
 **Cache fixes:**
 - "Analysis Incomplete" results (a skipped rule) are no longer stored in either cache; before, they were stored forever in the content cache
@@ -627,6 +630,29 @@ Synapse is the internal product management system that issues feature requests a
 **Grammar parser tested and not adopted:** a pinned spaCy parser (spaCy 3.8.7, en_core_web_sm 3.8.0) found unnamed speakers for #1 ("officials said", "experts say") and passives with no actor for #22. On 10 new articles from outside the test sets, and then on the saved test sets, it flagged AP wire stories as often as partisan ones: AP routinely writes "officials said" or "attorneys contend" after naming those people earlier in the story, and the parser can't see that. It also can't tell a reporting verb ("say") from other verbs that take a clause ("agree to"). The experiment code is kept outside the repo with the test files.
 
 **#14 lexicon check:** the NRC VAD arousal lexicon forbids redistribution and commercial use without a license. A CC BY 4.0 copy of the Warriner et al. (2013) arousal norms exists, but the original terms weren't confirmed. Neither was adopted.
+
+### V5.14 - Majority Vote on First Scans (Nov 24, 2026)
+**Why:** The cache makes repeat scans identical (V5.13), but a first scan still rested on one model run, and judgment rules (#1, #7, #22) sometimes flipped between runs. The owner asked for majority voting.
+
+**Implementation (`voting.py`):**
+- Every first scan makes two model runs in parallel. Each run is checked by the rulebook on its own (quote verified in the article, Quote Shield, Target Rule), so a run's answer to a rule is "counted" or "not counted" exactly as the score sees it
+- If both runs answered all 24 rules and agree on every one, that result is used. Otherwise a third run is made
+- Each rule takes the answer a majority of the runs made gave (2 of 2, or 2 of 3). A run that skipped a rule casts no vote; a rule with no majority means no score ("Analysis Incomplete")
+- The voted ledger copies each rule's row from a run that gave the majority answer, so a counted rule always carries a verified quote. The rulebook scores that ledger: code alone computes the score, and the cache stores only the voted result
+- Summary and analysis prose come from the run closest to the vote
+- Both the search pipeline and the style-only path vote. The source-extraction call is made once, as before
+- `ENGINE_VERSION = "5.14"`, so results cached under 5.13 are rescored
+- Tests: 11 in `test_voting.py`
+
+**#14 decision:** High-Arousal keeps the V5.10 fixed word list. A fixed list is the usual way to score emotive wording, it gives the same answer every time, and it is what stopped AP stories flipping between 79 and 100. No published lexicon has terms that allow commercial use (V5.13).
+
+**Offline check (no model calls), 8 held-out articles with 3 saved runs each (fresh3, Claude Sonnet stand-in):**
+- The third run was needed on 2 of 8 articles (Gateway Pundit, Common Dreams)
+- The voted score was the same for every order of the 3 saved runs on all 8 articles
+- Voted scores: AP/Reuters 100, 100, 79, 100 (the 79 is one #5 hit, given on all 3 runs); RT 54, Global Times 54, Gateway Pundit 79, Common Dreams 100
+- Voting settles which answer a first scan gets; it does not change what the rules catch. Gateway Pundit and Common Dreams still get through
+
+**Cost:** about 2.25 analysis calls per first scan at that 1-in-4 tie-break rate (two runs always, a third on disagreement), against one before. Cached repeat scans cost nothing. The two runs are made in parallel, so only a tie-break adds wait time.
 
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.

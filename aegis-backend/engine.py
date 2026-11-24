@@ -1,4 +1,4 @@
-# engine.py - Acuity A.N.I.E. Engine V5.10 "Word List" + V5.9r4 "NCI Sheet Evidence" + V5.9 "Itemized Ledger" + V5.8 "Stacking Rule" + V5.7 "Position vs Technique" on V5.3 Quote Attribution
+# engine.py - Acuity A.N.I.E. Engine V5.14 "Majority Vote" + V5.10 "Word List" + V5.9r4 "NCI Sheet Evidence" + V5.9 "Itemized Ledger" + V5.8 "Stacking Rule" + V5.7 "Position vs Technique" on V5.3 Quote Attribution
 import os
 import json
 import re
@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from openai import AsyncOpenAI
 from schemas import ANIResponse, VectorScore, FactCheckVector, ChecklistItem, SheetEvidence
 from rulebook import apply_rulebook, apply_sheet
+from voting import run_with_vote
 from dotenv import load_dotenv
 
 
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 # Strips ALL internal codes from user-facing output
 # ============================================================
 # Bump on any change to the prompt, rulebook or word list; the content cache is keyed on it.
-ENGINE_VERSION = "5.13"
+ENGINE_VERSION = "5.14"
 
 
 def sanitize_output(text: str) -> str:
@@ -683,7 +684,12 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
             # PHASE 3: Psyop Analysis (Intent Detection)
             # ============================================================
             print("⚖️ Analyzing for psychological manipulation intent...")
-            analysis = await psyop_analysis(text, title, search_results, current_date)
+            # V5.14: majority vote across runs; a rule with no majority means no score.
+            analysis, runs_made, all_failed = await run_with_vote(
+                lambda: psyop_analysis(text, title, search_results, current_date), f"{title or ''}\n{text}")
+            print(f"🗳️ Vote: {runs_made} runs")
+            if not all_failed and not analysis:
+                return _incomplete_response()
 
             if analysis:
                 # Extract vectors
@@ -755,18 +761,30 @@ async def analyze_text(text: str, title: str = None, url: str = None) -> ANIResp
 async def _style_only_analysis(text: str, title: str, current_date: str) -> ANIResponse:
     """Fallback analysis when Tavily unavailable - still checks for psyop patterns."""
     try:
-        completion = await client.chat.completions.create(
-            model=MODEL,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": get_psyop_hunter_prompt(current_date, "No search results available - analyze text patterns only")},
-                {"role": "user", "content": f"Analyze for psyop patterns (no external verification available):\n\nTitle: {title}\n\n{text[:MAX_TEXT_LENGTH]}"}
-            ],
-            temperature=0.0,  # V5.9r5: same article, same answer
-            max_tokens=4000
-        )
+        async def one_run():
+            try:
+                completion = await client.chat.completions.create(
+                    model=MODEL,
+                    response_format={"type": "json_object"},
+                    messages=[
+                        {"role": "system", "content": get_psyop_hunter_prompt(current_date, "No search results available - analyze text patterns only")},
+                        {"role": "user", "content": f"Analyze for psyop patterns (no external verification available):\n\nTitle: {title}\n\n{text[:MAX_TEXT_LENGTH]}"}
+                    ],
+                    temperature=0.0,  # V5.9r5: same article, same answer
+                    max_tokens=4000
+                )
+                return json.loads(completion.choices[0].message.content)
+            except Exception as e:
+                print(f"Style-only run error: {e}")
+                return None
 
-        data = json.loads(completion.choices[0].message.content)
+        # V5.14: majority vote across runs, as in the main pipeline.
+        data, runs_made, all_failed = await run_with_vote(one_run, f"{title or ''}\n{text}")
+        print(f"🗳️ Vote: {runs_made} runs")
+        if all_failed:
+            return _fallback_response("Style analysis error: every run failed")
+        if not data:
+            return _incomplete_response()
 
         vectors = {}
         vector_mapping = {
