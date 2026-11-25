@@ -107,6 +107,9 @@ Acuity (Acuity Narrative Integrity Engine, also known as A.N.I.E.) is an AI-powe
 aegis-backend/
 ├── main.py           # FastAPI app, endpoints, CORS
 ├── engine.py         # AI analysis engine (Psyop Hunter)
+├── rulebook.py       # NCI checklist scoring rules, enforced in code (V5.9+)
+├── arousal.py        # High-Arousal (#14) fixed word list (V5.10)
+├── voting.py         # Majority vote across model runs on first scans (V5.14)
 ├── schemas.py        # Pydantic models for request/response
 ├── services.py       # Supabase cache, event logging
 ├── scraper.py        # URL content extraction
@@ -487,6 +490,169 @@ Synapse is the internal product management system that issues feature requests a
 **Implementation:**
 - `sanitize_output()` function with 8 regex pattern groups
 - Catches: "NCI Marker #13", "Marker #7", "#13 - Artificial Urgency", etc.
+
+### V5.7 - Position vs Technique (Opinion Leniency Fix)
+**Directive:** Opinion pieces may argue a side, but spin techniques inside them are not excused.
+
+**Why:** The old rule ("IF OPINION: Leniency on bias (60-80 unless false claims)") acted as a score floor. Partisan and state-media pieces got classified as opinion and landed in the 35-55 range instead of being scored on the markers they triggered.
+
+**Implementation:**
+- Advocacy, a stated thesis and first-person voice carry no deduction
+- All 24 markers in the author's voice are deducted at full rate; Score Ceilings, Red Lines and the Weakest Link Rule apply as for news
+- No 60-80 floor: clean opinion can score 80+, spin-loaded opinion can score below 40
+- Opinion must be earned: text formatted as news is classified as NEWS
+
+### V5.8 - Stacking Rule
+**Directive:** Score bands are ceilings, never floors.
+
+**Why:** "4+ tactics = 40-59" meant an article with 7 tactics in the author's voice still scored about 40 unless a Red Line fired.
+
+**Implementation:**
+- 4-5 tactics = 40-59; 6-7 tactics = 25-39; 8+ tactics = below 25
+- Quote Shield still applies; each distinct tactic counts once
+
+### V5.9 - Itemized Ledger (Rules Applied in Code)
+**Directive:** The model judges each of the 24 markers; the code applies the scoring rules.
+
+**Why:** In testing, the model's own scores broke the prompt's rules on 8 of 10 articles (band caps, Weakest Link, verdict key). The code's verdict mapping (<=30/<=50/<=70/<=85) also differed from the prompt's VERDICT KEY, and the style-only path skipped the Weakest Link Rule.
+
+**Implementation:**
+- Model returns `nci_ledger`: one row per marker 1-24 with `hit`, `voice` (author/quoted), an exact `quote` (25 words max), and `target` (subject/object) for High-Arousal Loading
+- `rulebook.py` keeps a hit only if its quote appears verbatim in the article, drops quoted-voice hits (Quote Shield) and object-target arousal hits (Target Rule)
+- Code computes vectors, final score and verdict: deductions 15 standard / 20 cold (top of stated ranges), vector caps, Score Ceilings (75 / 65), Red Lines, full consensus cap, stacking bands as ceilings, Weakest Link (+5), prompt VERDICT KEY
+- Same rules on the Tavily path and the style-only path; response gains an optional `checklist` (marker names only, no NCI numbers)
+- Falls back to the old scoring if the ledger is missing; `max_tokens` raised 2000 -> 4000
+- Tests: `aegis-backend/test_rulebook.py`
+
+### V5.9r4 - NCI Sheet Evidence
+**Directive:** Run every article through the full NCI Engineered Reality sheet (20 items), not only the 24 markers.
+
+**Why:** The 24 markers cover about 12 of the sheet's 20 items. Eight were never checked: Timing, Uniform Messaging, Overuse of Novelty, Financial/Political Gain, Emotional Repetition, Manufactured Outrage, Rapid Behavior Shifts, Historical Parallels.
+
+**Implementation:**
+- Model returns `nci_sheet`: 8 rows of {item, status, quote}; `rulebook.apply_sheet` verifies each quote verbatim
+- Status: present (quote verified) / absent / needs_search / unverified (claimed without a verbatim quote)
+- Timing, Uniform Messaging, Financial/Political Gain and Rapid Behavior Shifts can't be judged from one article: they stay `needs_search` on the style-only path; on the Tavily path the model may quote the search results, and the quote is verified against them
+- **Evidence only:** the sheet never changes `ani_score`, caps, deductions or verdict. Returned as `sheet_evidence` on the response
+
+### V5.9r5 - Single-Tactic Rule + Same Article, Same Score
+**Directive:** One loaded phrase must not drag a straight story to 64, and the same article must get the same score on every scan.
+
+**Why:** On the Nov 2026 held-out set, one counted High-Arousal phrase in an AP story capped its vector at 59, so Weakest Link made the final 64 (a false alarm). Reruns of the same article also moved by up to 9 points, and the URL cache expires after 12 hours.
+
+**Implementation:**
+- `rulebook.py`: when only ONE tactic counts, the vector caps (#3, #4, #14, #16) and the 75 ceiling don't apply; the 1-3 tactic band (max 79) and Red Lines still do. Two or more tactics: rules unchanged. Prompt text updated to match
+- `services.py` content cache: key = sha256 of normalized title + text plus `ENGINE_VERSION`, stored in the existing `scan_cache` table as `url_hash = "text:<version>:<hash>"` (no schema change), no TTL; error results never cached. `main.py` checks it before calling Grok
+- Style-only path temperature 0.2 -> 0.0 (main path was already 0.0)
+- Bump `ENGINE_VERSION` in `engine.py` on any prompt or rulebook change, so old cached scores aren't served for a new version
+- Note: `DELETE /v1/cache/clear` with no URL wipes the whole table, content entries included
+- Tests: `aegis-backend/test_rulebook.py`, `aegis-backend/test_content_cache.py`
+
+### V5.10 - High-Arousal Word List
+**Directive:** The same article must get the same High-Arousal (#14) result every time, judged only on the journalist's own words.
+
+**Why:** In the V5.9r5 test, 4 of 4 reruns scored differently, and #14 caused 3 of those flips (an AP story went 79 -> 100 between runs on "ran aground"). The model's #14 call was the biggest source of drift.
+
+**Implementation:**
+- `aegis-backend/arousal.py`: a fixed list of emotive words that straight wire copy avoids (horror/disgust, contempt, hype, headline attack verbs, pejorative labels). Whole-word, case-insensitive match
+- Quote Shield in code: text inside double quotes, curly quotes or single-quoted phrases is blanked before matching; apostrophes are left alone
+- Each hit returns the sentence it sits in as the evidence quote
+- `rulebook.py` uses the code result for #14 and ignores the model's #14 row. Commercial content keeps Target Rule object leniency (hits shown as `object`, not counted)
+- **V5.9r5 single-tactic rule withdrawn.** It existed so one loaded phrase couldn't drag straight news to 64; with the word list no straight article in the test sets trips #14, and the rule let a one-tactic Sputnik story score 79. Prompt text reverted to match
+- `ENGINE_VERSION` = "5.10", so content-cache entries from 5.9r5 aren't reused
+- Tested with zero model calls by rescoring 67 saved ledgers on 28 articles: no #14 hit on any of the 9 straight articles; same-article rerun pairs that differ went from 8 of 9 to 5 of 9 (the rest come from other markers)
+- Tests: `aegis-backend/test_arousal.py` plus updated `test_rulebook.py`
+- Limitation: the list only catches the words on it. The model's analysis prose may still mention High-Arousal language the list doesn't score
+
+### V5.10.1 - Word List Fix (Nov 24, 2026)
+**Why:** On a new held-out set of 8 articles (Nov 21-23: 4 AP/Reuters wire stories; RT, Gateway Pundit, Global Times, Common Dreams), an AP travel story hit the list on "Wicked weather on both coasts" and dropped to 64.
+
+**Change:** "wicked" removed from the list (it is a common weather/slang idiom, not loaded language in wire copy). `ENGINE_VERSION` = "5.10.1".
+
+**Held-out result (20 calls, Claude Sonnet standing in for Grok):**
+- Straight news: 4 of 4 wire stories 100 after the fix (plain Claude 88-93)
+- Spin: RT 54, Global Times 54, Gateway Pundit 70, Common Dreams 75 (plain Claude 30, 30, 58, 28)
+- Gap (straight minus spin): 32 vs plain Claude 53, so plain Claude still ranks spin better
+- Reruns: 3 of 4 identical; Gateway Pundit went 70 -> 100 (the model found 2 markers once, none the second time)
+- Cause of the misses: the list doesn't hold the loaded phrases these stories used ("scandal-plagued", "dangerously deteriorating"); the model flagged them, but V5.10 ignores the model's #14. Counting the model's #14 again brings back false alarms on older sets, so it was not adopted
+
+### V5.11 - Every Rule Answered, Score From Code Only (Nov 24, 2026)
+**Why (owner's rules):** Rule 1, every article must run through all the rules. Rule 2, Anie cannot guess; the score must follow from the rules.
+
+**Change:**
+- `rulebook._read_ledger` returns nothing unless all 24 markers have a yes/no answer. A missing or malformed row is no longer read as "clear"
+- `engine.analyze_text` scores only from `apply_rulebook`. The model's own `ani_score`, vector scores, min-vector check and consistency boost are no longer used on either path
+- An incomplete ledger returns verdict "Analysis Incomplete" with no score, instead of falling back to the model's number
+- The result reports `rules_checked` (always 24) and the full 24-row checklist with each answer and quote
+- `ENGINE_VERSION` = "5.11"; prompt text unchanged
+- Tests: 3 new in `test_rulebook.py` (23 rows gives no score, a non yes/no answer gives no score, the model's number is ignored)
+
+**Determinism test (8 held-out articles x 3 runs, Claude Sonnet standing in for Grok, which can't be set to temperature 0):**
+- Rule coverage: 24 of 24 answered on all 24 runs
+- Same answers give the same score every time (code only)
+- 6 of 8 articles scored identically on all 3 runs
+- 4 of 192 rule answers changed between runs: #1 Source Amnesia twice, #22 Agency Deletion once, #7 In-Group/Out-Group once
+- Gateway Pundit went 70 / 100 / 79 and Common Dreams 75 / 100 / 100 because of those flips
+- Production Grok runs at temperature 0 and caches by text hash, so a repeat scan of the same text returns the same result
+
+### V5.12 - Rules 1, 7 and 22 Checked in Code (Nov 24, 2026) [WITHDRAWN in V5.13]
+**Why:** In the V5.11 test these were the only rules whose model answers changed between runs (4 of 192). The owner asked for them to become code checks.
+
+**Change:**
+- New `aegis-backend/rule_checks.py`: fixed phrase tests written from each rule's definition, with the Quote Shield. The model's rows for #1, #7 and #22 are ignored, as with #14
+  - #1 Source Amnesia: unnamed experts, analysts or studies making a claim ("experts say", "studies show", "it is widely believed"), unless the same sentence names the source ("experts at", "according to", a named journal, university or institute)
+  - #7 In-Group/Out-Group: pejorative or monolith group labels ("Democrat-led", "radical left", "the left's", "globalists", "Trump regime", "Kyiv regime"). Descriptive wire terms such as "far-right" and "Republican-led" are not on the list
+  - #22 Agency Deletion: passives that hide the actor ("mistakes were made", "questions have been raised", "it was decided"), unless "by" names the actor
+- `arousal.find_in_narration` is the shared quote-shielded finder for #14 and the three new checks
+- `ENGINE_VERSION` = "5.12"
+- Tests: `aegis-backend/test_rule_checks.py` (6) plus 2 in `test_rulebook.py`; fixtures no longer rely on model hits for #1 or #7
+
+**Rescore of every saved run (no model calls, `v512-rescore.txt` in the test folder):**
+- Nov 21-23 set, 3 runs each: 8 of 8 articles now score the same on all 3 runs (was 6 of 8)
+- Wire stories: no #1, #7 or #22 hit on any of the 13 wire articles in the saved sets
+- Gateway Pundit and Common Dreams now score 100 on every run: their flagged phrasing ("federal officials are warning", "was reportedly canceled") is not on the lists
+- Limitation: a phrase test only catches the wording on its list, so stable is not the same as complete
+
+### V5.13 - Same Article, Same Answer, Through the Cache (Nov 24, 2026)
+**Why:** The owner rejected word lists for judging news (V5.12), and asked for the best architectural option for Rule 2 (no guessing, same result every time).
+
+**Decision:** determinism comes from the system, not from turning judgment rules into phrase tests.
+- Code alone computes the score from the 24 answers, and a missing answer means no score (V5.11, kept)
+- The content cache keys each result on the normalized title and text plus `ENGINE_VERSION`, with no expiry, so the same article text always returns the same stored result
+- #1, #7 and #22 go back to the model's yes/no with a verbatim quote that code verifies (V5.12 lists withdrawn)
+- #14 keeps the V5.10 word list (see below; made final in V5.14)
+
+**Cache fixes:**
+- "Analysis Incomplete" results (a skipped rule) are no longer stored in either cache; before, they were stored forever in the content cache
+- The URL cache now stores the engine version with each result and treats an entry from another version as a miss, so a rule change takes effect at once instead of up to 12 hours later
+- Tests: 2 new in `test_content_cache.py`
+
+**Grammar parser tested and not adopted:** a pinned spaCy parser (spaCy 3.8.7, en_core_web_sm 3.8.0) found unnamed speakers for #1 ("officials said", "experts say") and passives with no actor for #22. On 10 new articles from outside the test sets, and then on the saved test sets, it flagged AP wire stories as often as partisan ones: AP routinely writes "officials said" or "attorneys contend" after naming those people earlier in the story, and the parser can't see that. It also can't tell a reporting verb ("say") from other verbs that take a clause ("agree to"). The experiment code is kept outside the repo with the test files.
+
+**#14 lexicon check:** the NRC VAD arousal lexicon forbids redistribution and commercial use without a license. A CC BY 4.0 copy of the Warriner et al. (2013) arousal norms exists, but the original terms weren't confirmed. Neither was adopted.
+
+### V5.14 - Majority Vote on First Scans (Nov 24, 2026)
+**Why:** The cache makes repeat scans identical (V5.13), but a first scan still rested on one model run, and judgment rules (#1, #7, #22) sometimes flipped between runs. The owner asked for majority voting.
+
+**Implementation (`voting.py`):**
+- Every first scan makes two model runs in parallel. Each run is checked by the rulebook on its own (quote verified in the article, Quote Shield, Target Rule), so a run's answer to a rule is "counted" or "not counted" exactly as the score sees it
+- If both runs answered all 24 rules and agree on every one, that result is used. Otherwise a third run is made
+- Each rule takes the answer a majority of the runs made gave (2 of 2, or 2 of 3). A run that skipped a rule casts no vote; a rule with no majority means no score ("Analysis Incomplete")
+- The voted ledger copies each rule's row from a run that gave the majority answer, so a counted rule always carries a verified quote. The rulebook scores that ledger: code alone computes the score, and the cache stores only the voted result
+- Summary and analysis prose come from the run closest to the vote
+- Both the search pipeline and the style-only path vote. The source-extraction call is made once, as before
+- `ENGINE_VERSION = "5.14"`, so results cached under 5.13 are rescored
+- Tests: 11 in `test_voting.py`
+
+**#14 decision:** High-Arousal keeps the V5.10 fixed word list. A fixed list is the usual way to score emotive wording, it gives the same answer every time, and it is what stopped AP stories flipping between 79 and 100. No published lexicon has terms that allow commercial use (V5.13).
+
+**Offline check (no model calls), 8 held-out articles with 3 saved runs each (fresh3, Claude Sonnet stand-in):**
+- The third run was needed on 2 of 8 articles (Gateway Pundit, Common Dreams)
+- The voted score was the same for every order of the 3 saved runs on all 8 articles
+- Voted scores: AP/Reuters 100, 100, 79, 100 (the 79 is one #5 hit, given on all 3 runs); RT 54, Global Times 54, Gateway Pundit 79, Common Dreams 100
+- Voting settles which answer a first scan gets; it does not change what the rules catch. Gateway Pundit and Common Dreams still get through
+
+**Cost:** about 2.25 analysis calls per first scan at that 1-in-4 tie-break rate (two runs always, a third on disagreement), against one before. Cached repeat scans cost nothing. The two runs are made in parallel, so only a tie-break adds wait time.
 
 ### V6.0 - Grok-4.1 Upgrade
 **Directive:** Upgrade to xAI's latest reasoning model.

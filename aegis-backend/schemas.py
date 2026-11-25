@@ -55,6 +55,23 @@ class FactCheckVector(BaseModel):
     analysis: str = Field(..., description="Detailed explanation of fact-check findings")
 
 
+class ChecklistItem(BaseModel):
+    """V5.9 Itemized Ledger: one row per checklist marker, with the quote that proves it."""
+    name: str = Field(..., description="Concept name of the marker")
+    vector: str = Field(..., description="reality, tribal, neuro or logic")
+    hit: bool = Field(..., description="Marker found with a quote that appears verbatim in the article")
+    counted: bool = Field(..., description="Hit in the author's own voice, so it counts toward the score")
+    voice: Optional[str] = Field(default=None, description="author or quoted")
+    quote: Optional[str] = Field(default=None, description="Exact line from the article")
+
+
+class SheetEvidence(BaseModel):
+    """V5.9r4: one NCI sheet item not covered by the 24 markers. Evidence only, never scored."""
+    name: str = Field(..., description="Sheet item name")
+    status: str = Field(..., description="present, absent, needs_search or unverified")
+    quote: Optional[str] = Field(default=None, description="Exact line from the article or search results")
+
+
 class ANIResponse(BaseModel):
     ani_score: int = Field(..., ge=0, le=100, description="0-100 Narrative Integrity Score")
     summary: str = Field(..., description="2-3 sentence summary of findings")
@@ -66,6 +83,8 @@ class ANIResponse(BaseModel):
         description="Analysis vectors: authority, emotion, logic, headline"
     )
     fact_check: Optional[FactCheckVector] = Field(default=None, description="Fact-check results from Truth Layer")
+    checklist: Optional[List[ChecklistItem]] = Field(default=None, description="V5.9: itemized result for every checklist marker")
+    sheet_evidence: Optional[List[SheetEvidence]] = Field(default=None, description="V5.9r4: NCI sheet items reported as evidence; no effect on ani_score")
     cached: bool = Field(default=False, description="Whether result was served from cache")
     credits_remaining: Optional[int] = Field(default=None, description="User's remaining credits")
 

@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Header, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from schemas import ScanRequest, ANIResponse, ChatRequest, ChatResponse, FeedbackRequest
-from engine import analyze_text, client, MODEL
+from engine import analyze_text, client, MODEL, ENGINE_VERSION
 import services
 from scraper import scrape_article
 import uvicorn
@@ -147,7 +147,7 @@ async def scan_endpoint(
         tracking_params = {}
 
     # 1. CACHE CHECK (Nuclear hash strips all tracking params)
-    cached = services.check_cache(payload.url)
+    cached = services.check_cache(payload.url, ENGINE_VERSION)
     if cached:
         # LOG CACHE HIT (Background) - V4.8: Include enrichment data
         background_tasks.add_task(
@@ -192,11 +192,19 @@ async def scan_endpoint(
         title = scrape_result.get("title", title)
         print(f"✅ Scraped {len(text_to_analyze)} chars, title: {title[:50]}...")
 
-    # 4. RUN GROK (The Cost)
-    result = await analyze_text(text_to_analyze, title=title)
+    # 4. RUN GROK (The Cost), unless this exact article text was already scored.
+    # V5.9r5: the content cache makes the same article get the same score every time.
+    by_text = services.check_content_cache(text_to_analyze, title, ENGINE_VERSION)
+    if by_text:
+        result = ANIResponse(**by_text)
+    else:
+        result = await analyze_text(text_to_analyze, title=title)
+    stored = dict(result.model_dump(), engine_version=ENGINE_VERSION)
+    if not by_text:
+        services.save_content_cache(text_to_analyze, title, ENGINE_VERSION, stored, result.ani_score)
 
-    # 5. SAVE TO CACHE (Canonical URL)
-    services.save_to_cache(payload.url, result.model_dump(), result.ani_score)
+    # 5. SAVE TO CACHE (Canonical URL), tagged with the engine version that scored it
+    services.save_to_cache(payload.url, stored, result.ani_score)
 
     # 6. LOG NEW SCAN EVENT (Background) - V4.8: Include enrichment data
     # Convert vectors to dict for logging
